@@ -7,16 +7,31 @@ import { z } from 'zod'
 import { StructuredTool } from '@langchain/core/tools'
 import type { LogFn } from '../../../types'
 import type { MessageStore } from '../../../services/message/store'
-import { ensureOneBotSession, callOneBotAPI } from '../api'
+import { ensureOneBotSession, callOneBotAPI, type OneBotProtocol } from '../api'
 import { getSession } from '../../chatluna/tools/types'
 
 export interface ForwardMessageToolDeps {
     toolName: string
     messageStore: MessageStore
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
+interface ForwardContentSegment {
+    type: string
+    data: Record<string, string>
+}
+
 interface ForwardNode {
+    type: 'node'
+    data: {
+        name: string
+        uin: string
+        content: ForwardContentSegment[]
+    }
+}
+
+interface LegacyForwardNode {
     type: 'node'
     data: {
         name: string
@@ -26,7 +41,7 @@ interface ForwardNode {
 }
 
 export function createForwardMessageTool(deps: ForwardMessageToolDeps) {
-    const { toolName, messageStore, log } = deps
+    const { toolName, messageStore, log, protocol } = deps
 
     // @ts-ignore - Type instantiation depth issue with zod + StructuredTool
     return new (class extends StructuredTool {
@@ -71,12 +86,12 @@ export function createForwardMessageTool(deps: ForwardMessageToolDeps) {
                         ? input.messageIds.map((id) => id.trim()).filter(Boolean)
                         : []
 
-                let nodes: ForwardNode[]
+                let legacyNodes: LegacyForwardNode[]
 
                 if (explicitIds.length > 0) {
                     const found = messageStore.findByIds(session, explicitIds)
                     const map = new Map(found.map((msg) => [msg.messageId, msg]))
-                    nodes = explicitIds
+                    legacyNodes = explicitIds
                         .map((id) => {
                             const hit = map.get(id)
                             if (!hit) return null
@@ -85,13 +100,13 @@ export function createForwardMessageTool(deps: ForwardMessageToolDeps) {
                                 data: {
                                     name: hit.username || hit.userId || '未知用户',
                                     uin: hit.userId || session.userId || '',
-                                    content: hit.content
+                                    content: String(hit.content || '')
                                 }
                             }
                         })
-                        .filter((item): item is ForwardNode => item !== null)
+                        .filter((item): item is LegacyForwardNode => item !== null)
 
-                    if (!nodes.length) {
+                    if (!legacyNodes.length) {
                         return 'No messages found for provided messageIds.'
                     }
                 } else {
@@ -101,14 +116,31 @@ export function createForwardMessageTool(deps: ForwardMessageToolDeps) {
                 const { error, internal } = ensureOneBotSession(session)
                 if (error) return error
 
-                await callOneBotAPI(
-                    internal!,
-                    'send_forward_msg',
-                    { group_id: targetGroupId, messages: nodes },
-                    ['sendForwardMsg']
-                )
+                if (protocol === 'llbot') {
+                    const llbotNodes: ForwardNode[] = legacyNodes.map((node) => ({
+                        type: 'node' as const,
+                        data: {
+                            name: node.data.name,
+                            uin: node.data.uin,
+                            content: [{ type: 'text', data: { text: node.data.content } }]
+                        }
+                    }))
+                    await callOneBotAPI(
+                        internal!,
+                        'send_group_forward_msg',
+                        { group_id: targetGroupId, messages: llbotNodes },
+                        ['sendGroupForwardMsg']
+                    )
+                } else {
+                    await callOneBotAPI(
+                        internal!,
+                        'send_forward_msg',
+                        { group_id: targetGroupId, messages: legacyNodes },
+                        ['sendForwardMsg']
+                    )
+                }
 
-                const success = `Forwarded ${nodes.length} messages to group ${targetGroupId}.`
+                const success = `Forwarded ${legacyNodes.length} messages to group ${targetGroupId}.`
                 log?.('info', success)
                 return success
             } catch (error) {

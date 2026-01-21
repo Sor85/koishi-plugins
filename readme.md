@@ -110,6 +110,9 @@ MIT © 2024-present chatluna-affinity contributors
 
 ## 更新日志
 
+0.2.3
+- OneBot 协议新增 NapCat/LLBot 独立选项，按配置选择协议
+
 0.2.3-alpha.4
 - 修复日程生成提示词人设注入变量 {persona} 失效的问题，新增模型选择与人设注入选项
 - 天气服务切换为 open-meteo，不再需要提供 token

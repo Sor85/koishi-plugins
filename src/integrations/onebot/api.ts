@@ -5,6 +5,8 @@
 
 import type { Session } from 'koishi'
 
+export type OneBotProtocol = 'napcat' | 'llbot'
+
 export interface OneBotInternal {
     _request?: (action: string, params: Record<string, unknown>) => Promise<unknown>
     [key: string]: unknown

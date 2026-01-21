@@ -45,6 +45,7 @@ import {
     createWeatherTool
 } from './integrations/chatluna/tools'
 import { createPokeTool, sendPoke } from './integrations/onebot/tools/poke'
+import type { OneBotProtocol } from './integrations/onebot'
 import { createSetProfileTool } from './integrations/onebot/tools/profile'
 import { createSetGroupCardTool } from './integrations/onebot/tools/set-group-card'
 import { createSetMsgEmojiTool, sendMsgEmoji } from './integrations/onebot/tools/set-msg-emoji'
@@ -122,6 +123,19 @@ export function apply(ctx: Context, config: Config): void {
     })
 
     const log = createLogger(ctx, config)
+
+    const resolveOneBotProtocol = (): OneBotProtocol => {
+        if (config.enableNapCatProtocol && config.enableLlbotProtocol) {
+            log('warn', 'NapCat 与 LLBot 协议同时启用，将优先使用 LLBot。')
+            return 'llbot'
+        }
+        if (config.enableLlbotProtocol) return 'llbot'
+        if (config.enableNapCatProtocol) return 'napcat'
+        log('warn', '未启用 OneBot 协议选项，默认使用 NapCat。')
+        return 'napcat'
+    }
+
+    const onebotProtocol = resolveOneBotProtocol()
 
     log('warn', '⚠️ 升级提示：0.2.1-alpha.10 版本后数据库结构已重构，若出现数据库相关错误，请执行 affinity.clearall 命令清除数据后重试。好感度分析提示词与日程生成提示词已更新，若您自定义过提示词，请将其恢复默认以应用最新版本。')
     const cache = createAffinityCache()
@@ -349,7 +363,7 @@ export function apply(ctx: Context, config: Config): void {
                         const session = rawModelResponseSessionMap.get(rawModelResponseGuildId) || null
                         if (session && targetIds.length) {
                             for (const userId of targetIds) {
-                                void sendPoke({ session, userId, log })
+                                void sendPoke({ session, userId, log, protocol: onebotProtocol })
                             }
                         } else if (targetIds.length) {
                             log('warn', '检测到戳一戳标记但缺少会话上下文', {
@@ -372,7 +386,13 @@ export function apply(ctx: Context, config: Config): void {
                                 const messageId = String(match[1] || '').trim()
                                 const emojiId = String(match[2] || '').trim()
                                 if (messageId && emojiId) {
-                                    void sendMsgEmoji({ session, messageId, emojiId, log })
+                                    void sendMsgEmoji({
+                                        session,
+                                        messageId,
+                                        emojiId,
+                                        log,
+                                        protocol: onebotProtocol
+                                    })
                                 }
                             }
                         } else {
@@ -658,7 +678,7 @@ export function apply(ctx: Context, config: Config): void {
             plugin.registerTool(toolName, {
                 selector: () => true,
                 authorization: (session: Session | undefined) => session?.platform === 'onebot',
-                createTool: () => createPokeTool({ ctx, toolName, log })
+                createTool: () => createPokeTool({ ctx, toolName, log, protocol: onebotProtocol })
             })
             log('info', `戳一戳工具已注册: ${toolName}`)
         }
@@ -677,7 +697,7 @@ export function apply(ctx: Context, config: Config): void {
             plugin.registerTool(toolName, {
                 selector: () => true,
                 authorization: (session: Session | undefined) => session?.platform === 'onebot',
-                createTool: () => createSetProfileTool({ ctx, toolName, log })
+                createTool: () => createSetProfileTool({ ctx, toolName, log, protocol: onebotProtocol })
             })
             log('info', `设置资料工具已注册: ${toolName}`)
         }
@@ -697,7 +717,7 @@ export function apply(ctx: Context, config: Config): void {
             plugin.registerTool(toolName, {
                 selector: () => true,
                 authorization: (session: Session | undefined) => session?.platform === 'onebot',
-                createTool: () => createSetMsgEmojiTool({ toolName, log })
+                createTool: () => createSetMsgEmojiTool({ toolName, log, protocol: onebotProtocol })
             })
             log('info', `消息表情工具已注册: ${toolName}`)
         }
@@ -711,7 +731,8 @@ export function apply(ctx: Context, config: Config): void {
                     createForwardMessageTool({
                         toolName,
                         messageStore,
-                        log
+                        log,
+                        protocol: onebotProtocol
                     })
             })
             log('info', `合并转发消息工具已注册: ${toolName}`)
@@ -722,7 +743,7 @@ export function apply(ctx: Context, config: Config): void {
             plugin.registerTool(toolName, {
                 selector: () => true,
                 authorization: (session: Session | undefined) => session?.platform === 'onebot',
-                createTool: () => createFakeMessageTool({ toolName, log })
+                createTool: () => createFakeMessageTool({ toolName, log, protocol: onebotProtocol })
             })
             log('info', `伪造消息工具已注册: ${toolName}`)
         }

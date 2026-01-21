@@ -11,7 +11,7 @@ export const ScheduleSchema = Schema.object({
         enabled: Schema.boolean().default(true).description('是否启用日程功能'),
         model: Schema.dynamic('model')
             .default('')
-            .description('日程生成使用的模型，留空则使用 ChatLuna 默认模型'),
+            .description('日程生成使用的模型'),
         personaSource: Schema.union([
             Schema.const('none').description('不注入人设'),
             Schema.const('chatluna').description('使用 ChatLuna 主插件人设'),

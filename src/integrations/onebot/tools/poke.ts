@@ -7,12 +7,13 @@ import { z } from 'zod'
 import { StructuredTool } from '@langchain/core/tools'
 import type { Context, Session } from 'koishi'
 import type { LogFn } from '../../../types'
-import { ensureOneBotSession } from '../api'
+import { ensureOneBotSession, type OneBotProtocol } from '../api'
 import { getSession } from '../../chatluna/tools/types'
 
 export interface PokeToolDeps {
     ctx: Context
     toolName: string
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
@@ -20,12 +21,13 @@ export interface SendPokeParams {
     session: Session | null
     userId: string
     groupId?: string
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
 export async function sendPoke(params: SendPokeParams): Promise<string> {
     try {
-        const { session, userId, groupId, log } = params
+        const { session, userId, groupId, log, protocol } = params
         const { error, internal, session: validatedSession } = ensureOneBotSession(session)
         if (error) return error
 
@@ -38,7 +40,16 @@ export async function sendPoke(params: SendPokeParams): Promise<string> {
         const payload: Record<string, unknown> = { user_id: userId }
         if (resolvedGroupId) payload.group_id = resolvedGroupId
 
-        if (typeof internal!._request === 'function') {
+        if (protocol === 'llbot') {
+            const action = payload.group_id ? 'group_poke' : 'friend_poke'
+            if (typeof internal!._request === 'function') {
+                await internal!._request(action, payload)
+            } else if (typeof internal![action] === 'function') {
+                await (internal![action] as (p: Record<string, unknown>) => Promise<void>)(payload)
+            } else {
+                throw new Error(`当前适配器未实现 ${action} API。`)
+            }
+        } else if (typeof internal!._request === 'function') {
             await internal!._request('send_poke', payload)
         } else if (typeof internal!.sendPoke === 'function') {
             await (internal!.sendPoke as (g: unknown, u: unknown) => Promise<void>)(
@@ -62,7 +73,7 @@ export async function sendPoke(params: SendPokeParams): Promise<string> {
 }
 
 export function createPokeTool(deps: PokeToolDeps) {
-    const { toolName, log } = deps
+    const { toolName, log, protocol } = deps
 
     // @ts-expect-error - Type instantiation depth issue with zod + StructuredTool
     return new (class extends StructuredTool {
@@ -84,7 +95,7 @@ export function createPokeTool(deps: PokeToolDeps) {
             runnable?: unknown
         ) {
             const session = getSession(runnable)
-            return sendPoke({ session, userId: input.userId, groupId: input.groupId, log })
+            return sendPoke({ session, userId: input.userId, groupId: input.groupId, log, protocol })
         }
     })()
 }

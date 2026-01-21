@@ -7,19 +7,20 @@ import { z } from 'zod'
 import { StructuredTool } from '@langchain/core/tools'
 import type { Context } from 'koishi'
 import type { LogFn } from '../../../types'
-import { ensureOneBotSession, callOneBotAPI } from '../api'
+import { ensureOneBotSession, callOneBotAPI, type OneBotProtocol } from '../api'
 import { getSession } from '../../chatluna/tools/types'
 
 export interface ProfileToolDeps {
     ctx: Context
     toolName: string
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
 const genders: Record<string, string> = { unknown: '0', male: '1', female: '2' }
 
 export function createSetProfileTool(deps: ProfileToolDeps) {
-    const { toolName, log } = deps
+    const { toolName, log, protocol } = deps
 
     // @ts-expect-error - Type instantiation depth issue with zod + StructuredTool
     return new (class extends StructuredTool {
@@ -49,7 +50,7 @@ export function createSetProfileTool(deps: ProfileToolDeps) {
 
                 const payload: Record<string, unknown> = { nickname: input.nickname }
                 if (input.signature) payload.personal_note = input.signature
-                if (input.gender) payload.sex = genders[input.gender]
+                if (input.gender && protocol !== 'llbot') payload.sex = genders[input.gender]
 
                 await callOneBotAPI(internal!, 'set_qq_profile', payload, ['setQQProfile'])
                 const message = '机器人资料已更新。'

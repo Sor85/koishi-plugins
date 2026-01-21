@@ -137,6 +137,8 @@ export interface Config {
     userInfo: UserInfoConfig
     botInfo: BotInfoConfig
     groupInfo: GroupInfoConfig
+    enableNapCatProtocol: boolean
+    enableLlbotProtocol: boolean
     enablePokeTool: boolean
     pokeToolName: string
     enablePokeXmlTool: boolean

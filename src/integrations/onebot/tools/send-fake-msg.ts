@@ -6,16 +6,31 @@
 import { z } from 'zod'
 import { StructuredTool } from '@langchain/core/tools'
 import type { LogFn } from '../../../types'
-import { ensureOneBotSession, callOneBotAPI } from '../api'
+import { ensureOneBotSession, callOneBotAPI, type OneBotProtocol } from '../api'
 import { getSession } from '../../chatluna/tools/types'
 import { collectNicknameCandidates, fetchMember } from '../../../helpers/member'
 
 export interface FakeMessageToolDeps {
     toolName: string
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
+interface ForwardContentSegment {
+    type: string
+    data: Record<string, string>
+}
+
 interface ForwardNode {
+    type: 'node'
+    data: {
+        name: string
+        uin: string
+        content: ForwardContentSegment[]
+    }
+}
+
+interface LegacyForwardNode {
     type: 'node'
     data: {
         name: string
@@ -25,7 +40,7 @@ interface ForwardNode {
 }
 
 export function createFakeMessageTool(deps: FakeMessageToolDeps) {
-    const { toolName, log } = deps
+    const { toolName, log, protocol } = deps
 
     // @ts-ignore - Type instantiation depth issue with zod + StructuredTool
     return new (class extends StructuredTool {
@@ -110,6 +125,24 @@ export function createFakeMessageTool(deps: FakeMessageToolDeps) {
                     return 'Missing targetGroupId. Provide targetGroupId or run inside a group session.'
                 }
 
+                const buildForwardContent = (content: string): ForwardContentSegment[] => [{
+                    type: 'text',
+                    data: { text: content }
+                }]
+
+                const buildLegacyNodes = (targets: ForwardNode[]): LegacyForwardNode[] =>
+                    targets.map((node) => ({
+                        type: 'node' as const,
+                        data: {
+                            name: node.data.name,
+                            uin: node.data.uin,
+                            content: node.data.content
+                                .map((segment) => segment.data.text || '')
+                                .filter(Boolean)
+                                .join('')
+                        }
+                    }))
+
                 const nodes = (() => {
                     const buildNodesFromMessages = (
                         messages:
@@ -144,7 +177,7 @@ export function createFakeMessageTool(deps: FakeMessageToolDeps) {
                                     data: {
                                         name: displayName || uin,
                                         uin,
-                                        content: text
+                                        content: buildForwardContent(text)
                                     }
                                 }
                             })
@@ -184,7 +217,7 @@ export function createFakeMessageTool(deps: FakeMessageToolDeps) {
                         data: {
                             name: displayName,
                             uin: senderId,
-                            content
+                            content: buildForwardContent(content)
                         }
                     }))
                 })()
@@ -212,12 +245,22 @@ export function createFakeMessageTool(deps: FakeMessageToolDeps) {
                 const { error, internal } = ensureOneBotSession(session)
                 if (error) return error
 
-                await callOneBotAPI(
-                    internal!,
-                    'send_forward_msg',
-                    { group_id: targetGroupId, messages: nodes },
-                    ['sendForwardMsg']
-                )
+                if (protocol === 'llbot') {
+                    await callOneBotAPI(
+                        internal!,
+                        'send_group_forward_msg',
+                        { group_id: targetGroupId, messages: nodes },
+                        ['sendGroupForwardMsg']
+                    )
+                } else {
+                    const legacyNodes = buildLegacyNodes(nodes)
+                    await callOneBotAPI(
+                        internal!,
+                        'send_forward_msg',
+                        { group_id: targetGroupId, messages: legacyNodes },
+                        ['sendForwardMsg']
+                    )
+                }
 
                 const senderSet = Array.from(new Set(nodes.map((n) => n.data.uin || n.data.name).filter(Boolean)))
                 const senderLabel = senderSet.length ? senderSet.join(',') : 'unknown'

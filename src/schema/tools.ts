@@ -6,6 +6,8 @@
 import { Schema } from 'koishi'
 
 export const NativeToolsSchema = Schema.object({
+    enableNapCatProtocol: Schema.boolean().default(true).description('启用 NapCat OneBot 协议（与 LLBot 二选一）'),
+    enableLlbotProtocol: Schema.boolean().default(false).description('启用 LLBot OneBot 协议（与 NapCat 二选一）'),
     enablePokeTool: Schema.boolean().default(false).description('注册 ChatLuna 工具：戳一戳'),
     pokeToolName: Schema.string().default('poke_user').description('ChatLuna 工具名称：戳一戳'),
     enableSetSelfProfileTool: Schema.boolean().default(false).description('注册 ChatLuna 工具：修改自身账户信息'),

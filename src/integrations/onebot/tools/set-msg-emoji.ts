@@ -7,11 +7,12 @@ import { z } from 'zod'
 import { StructuredTool } from '@langchain/core/tools'
 import type { LogFn } from '../../../types'
 import type { Session } from 'koishi'
-import { ensureOneBotSession, callOneBotAPI } from '../api'
+import { ensureOneBotSession, callOneBotAPI, type OneBotProtocol } from '../api'
 import { getSession } from '../../chatluna/tools/types'
 
 export interface SetMsgEmojiToolDeps {
     toolName: string
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
@@ -19,14 +20,19 @@ export interface SendMsgEmojiParams {
     session: Session | null
     messageId: string
     emojiId: string
+    protocol: OneBotProtocol
     log?: LogFn
 }
 
 export async function sendMsgEmoji(params: SendMsgEmojiParams): Promise<string> {
     try {
-        const { session, messageId, emojiId, log } = params
+        const { session, messageId, emojiId, log, protocol } = params
         if (!session) return 'No session context available.'
         if (session.platform !== 'onebot') return 'This tool only supports OneBot platform.'
+
+        if (protocol === 'llbot' && !session.guildId && !session.channelId) {
+            return '当前会话不是群聊，LLBot 不支持私聊表情回应。'
+        }
 
         const messageIdRaw = messageId.trim()
         const emojiIdRaw = emojiId.trim()
@@ -55,7 +61,7 @@ export async function sendMsgEmoji(params: SendMsgEmojiParams): Promise<string> 
 }
 
 export function createSetMsgEmojiTool(deps: SetMsgEmojiToolDeps): StructuredTool {
-    const { toolName, log } = deps
+    const { toolName, log, protocol } = deps
 
     // @ts-ignore - Type instantiation depth issue with zod + StructuredTool
     return new (class extends StructuredTool {
@@ -76,7 +82,7 @@ export function createSetMsgEmojiTool(deps: SetMsgEmojiToolDeps): StructuredTool
             runnable?: unknown
         ) {
             const session = getSession(runnable)
-            return sendMsgEmoji({ session, messageId: input.messageId, emojiId: input.emojiId, log })
+            return sendMsgEmoji({ session, messageId: input.messageId, emojiId: input.emojiId, log, protocol })
         }
     })() as StructuredTool
 }
