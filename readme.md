@@ -110,6 +110,9 @@ MIT © 2024-present chatluna-affinity contributors
 
 ## 更新日志
 
+0.2.5
+- 将 puppeteer 从可选依赖改为可选服务
+
 0.2.4
 - userInfo 变量新增 chatCount 字段，可展示聊天次数
 - 修复状态改变后 XML 工具拦截失效的问题

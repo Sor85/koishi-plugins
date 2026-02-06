@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-chatluna-affinity",
 "description": "为 ChatLuna Character 提供更多变量及工具，例如 {好感度}、{关系}、{日程}、{天气}、{用户信息}、{机器人信息}、{群信息}等变量并提供对应的工具调用和低好感自动拉黑功能。",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -38,7 +38,6 @@
     "koishi-plugin-chatluna": "*",
     "koishi-plugin-chatluna-character": "*",
     "@koishijs/plugin-console": "^5.30.0",
-    "koishi-plugin-puppeteer": "^3.0.0",
     "koishi-plugin-chatluna-group-analysis": "*"
   },
   "peerDependenciesMeta": {

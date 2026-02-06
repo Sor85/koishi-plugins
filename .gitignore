@@ -3,3 +3,4 @@ dist
 lib
 AGENTS.md
 STYLE_GUIDE.md
+.DS_Store
