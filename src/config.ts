@@ -25,6 +25,7 @@ export interface Config {
   renderMemeListAsImage: boolean;
   enableDirectAliasWithoutPrefix: boolean;
   allowMentionPrefixDirectAliasTrigger: boolean;
+  disallowLeadingAtBeforeCommand: boolean;
   enableMemeXmlTool: boolean;
   memeXmlReferencePrompt?: string;
   enableRandomDedupeWithinHours: boolean;
@@ -65,6 +66,7 @@ export const defaultConfig: Config = {
   renderMemeListAsImage: true,
   enableDirectAliasWithoutPrefix: true,
   allowMentionPrefixDirectAliasTrigger: false,
+  disallowLeadingAtBeforeCommand: true,
   enableMemeXmlTool: false,
   memeXmlReferencePrompt:
     '可用 XML 工具调用格式：<meme key="memekey" text="text1|text2" image="url1|url2" at="userid1|userid2"/>\n支持参数：key、text、image、at\n示例：<meme key="can_can_need" at="123456"/>\n如果缺少参数，会按预设的补全设置自动补全',
@@ -169,6 +171,9 @@ const triggerSchema = Schema.object({
   allowMentionPrefixDirectAliasTrigger: Schema.boolean()
     .default(defaultConfig.allowMentionPrefixDirectAliasTrigger)
     .description("是否允许贴合参数触发（如 看看你的xxxx@user1@user2）"),
+  disallowLeadingAtBeforeCommand: Schema.boolean()
+    .default(defaultConfig.disallowLeadingAtBeforeCommand)
+    .description("是否禁止前置@参数触发（如 @用户 meme）"),
   enableMemeXmlTool: Schema.boolean()
     .default(defaultConfig.enableMemeXmlTool)
     .description("是否启用 XML 形式的 meme 工具调用"),

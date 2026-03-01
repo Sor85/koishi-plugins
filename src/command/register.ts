@@ -33,6 +33,19 @@ import { installDirectAliasRuntime } from "./register/direct-alias-runtime";
 import { installXmlRuntime } from "./register/xml-runtime";
 import { installRandomAndPokeRuntime } from "./register/random-poke-runtime";
 
+interface StrippedLike {
+  content?: string;
+}
+
+function hasLeadingAtBeforeMemeCommand(session: unknown): boolean {
+  if (!session || typeof session !== "object") return false;
+  const stripped = (session as { stripped?: StrippedLike }).stripped;
+  const content = typeof stripped?.content === "string" ? stripped.content : "";
+  const normalized = content.trim();
+  if (!normalized) return false;
+  return /^<at\b[^>]*>\s*meme\b/i.test(normalized);
+}
+
 export function registerCommands(ctx: Context, config: Config): void {
   const client = new MemeBackendClient(
     ctx,
@@ -329,6 +342,15 @@ export function registerCommands(ctx: Context, config: Config): void {
         return handleErrorReply("meme.generate", "当前上下文不可用。");
       if (!key) return handleErrorReply("meme.generate", "请提供模板 key。");
 
+      if (
+        config.disallowLeadingAtBeforeCommand &&
+        hasLeadingAtBeforeMemeCommand(session)
+      ) {
+        return handleErrorReply(
+          "meme.generate",
+          "不支持前置@参数，请使用 meme @用户 的格式。",
+        );
+      }
       try {
         await ensureCategoryExcludedMemeKeySet();
         const resolvedKey = await resolveMemeKey(key);

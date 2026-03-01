@@ -226,6 +226,7 @@ function createBaseConfig(overrides: Partial<Config> = {}): Config {
     renderMemeListAsImage: false,
     enableDirectAliasWithoutPrefix: true,
     allowMentionPrefixDirectAliasTrigger: false,
+    disallowLeadingAtBeforeCommand: true,
     enableMemeXmlTool: false,
     enableRandomDedupeWithinHours: false,
     randomDedupeWindowHours: 24,
@@ -671,6 +672,71 @@ describe("registerCommands", () => {
       [],
       {},
     );
+  });
+
+  it("开启前置@拦截时应拒绝 @用户 meme 前置参数格式", async () => {
+    const commandActions = new Map<
+      string,
+      (...args: any[]) => Promise<unknown>
+    >();
+    const { ctx } = createMockContext();
+    ctx.command = vi.fn((name: string) => ({
+      action: vi.fn((handler: (...args: any[]) => Promise<unknown>) => {
+        commandActions.set(name, handler);
+        return { action: vi.fn() };
+      }),
+    }));
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        disallowLeadingAtBeforeCommand: true,
+      }),
+    );
+
+    const generateAction = commandActions.get("meme <key:string> [...texts]");
+    expect(generateAction).toBeDefined();
+
+    const session = createSession('<at id="10001"/> meme can_can_need', [
+      { type: "at", attrs: { id: "10001", name: "user1" }, children: [] },
+    ]);
+
+    const result = await generateAction!({ session }, "can_can_need");
+
+    expect(String(result)).toContain("不支持前置@参数");
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it("关闭前置@拦截时应允许 @用户 meme 前置参数格式", async () => {
+    const commandActions = new Map<
+      string,
+      (...args: any[]) => Promise<unknown>
+    >();
+    const { ctx } = createMockContext();
+    ctx.command = vi.fn((name: string) => ({
+      action: vi.fn((handler: (...args: any[]) => Promise<unknown>) => {
+        commandActions.set(name, handler);
+        return { action: vi.fn() };
+      }),
+    }));
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        disallowLeadingAtBeforeCommand: false,
+      }),
+    );
+
+    const generateAction = commandActions.get("meme <key:string> [...texts]");
+    expect(generateAction).toBeDefined();
+
+    const session = createSession('<at id="10001"/> meme can_can_need', [
+      { type: "at", attrs: { id: "10001", name: "user1" }, children: [] },
+    ]);
+
+    await generateAction!({ session }, "can_can_need");
+
+    expect(generateMock).toHaveBeenCalled();
   });
 
   it("默认关闭贴合触发时不应处理骑猪123", async () => {
