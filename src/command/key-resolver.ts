@@ -156,7 +156,6 @@ export function shouldRegisterDirectAlias(alias: string): boolean {
   if (!normalizedAlias) return false;
   if (normalizedAlias.includes(" ")) return false;
   if (/^[a-z0-9._-]+$/i.test(normalizedAlias)) return false;
-  if (normalizedAlias.length < 2) return false;
   return true;
 }
 

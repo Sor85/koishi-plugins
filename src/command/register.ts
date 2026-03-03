@@ -33,17 +33,143 @@ import { installDirectAliasRuntime } from "./register/direct-alias-runtime";
 import { installXmlRuntime } from "./register/xml-runtime";
 import { installRandomRuntime } from "./register/random-poke-runtime";
 
-interface StrippedLike {
-  content?: string;
+interface LeadingAtCommandParts {
+  leadingAtSegments: string[];
+  commandText: string;
+  suffix: string;
 }
 
-function hasLeadingAtBeforeMemeCommand(session: unknown): boolean {
-  if (!session || typeof session !== "object") return false;
-  const stripped = (session as { stripped?: StrippedLike }).stripped;
-  const content = typeof stripped?.content === "string" ? stripped.content : "";
+interface ElementLike {
+  type?: string;
+  attrs?: {
+    id?: string;
+    content?: unknown;
+  };
+}
+
+function resolveSessionTextContent(session: {
+  content?: unknown;
+  stripped?: { content?: unknown };
+}): string {
+  const rawContent =
+    typeof session.content === "string" ? session.content.trim() : "";
+  if (rawContent) return rawContent;
+
+  const strippedContent =
+    typeof session.stripped?.content === "string"
+      ? session.stripped.content.trim()
+      : "";
+  return strippedContent;
+}
+
+function extractAtIdSegments(rawAts: string): string[] {
+  const segments: string[] = [];
+  const idPattern = /\bid\s*=\s*"([^"]+)"/gi;
+  let match: RegExpExecArray | null = idPattern.exec(rawAts);
+  while (match) {
+    const id = (match[1] || "").trim();
+    if (id) segments.push(`<at id="${id}"/>`);
+    match = idPattern.exec(rawAts);
+  }
+  return segments;
+}
+
+function parseLeadingAtBeforeMemeCommand(
+  content: string,
+): LeadingAtCommandParts | undefined {
   const normalized = content.trim();
-  if (!normalized) return false;
-  return /^<at\b[^>]*>\s*meme\b/i.test(normalized);
+  if (!normalized) return undefined;
+
+  const segmentMatch = normalized.match(
+    /^((?:<at\b[^>]*>(?:<\/at>)?\s*)+)(\S+)([\s\S]*)$/i,
+  );
+  if (segmentMatch) {
+    const leadingAtSegments = extractAtIdSegments(segmentMatch[1] || "");
+    const commandText = (segmentMatch[2] || "").trim();
+    if (leadingAtSegments.length === 0 || !commandText) return undefined;
+    return {
+      leadingAtSegments,
+      commandText,
+      suffix: (segmentMatch[3] || "").trim(),
+    };
+  }
+
+  const plainMatch = normalized.match(/^((?:@\S+\s+)+)(\S+)([\s\S]*)$/i);
+  if (!plainMatch) return undefined;
+
+  const leadingAtSegments = (plainMatch[1] || "")
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.startsWith("@") && token.length > 1)
+    .map((token) => {
+      const mentionBody = token.slice(1).trim();
+      return /^\d+$/.test(mentionBody)
+        ? `<at id="${mentionBody}"/>`
+        : `@${mentionBody}`;
+    });
+
+  const commandText = (plainMatch[2] || "").trim();
+  if (leadingAtSegments.length === 0 || !commandText) return undefined;
+
+  return {
+    leadingAtSegments,
+    commandText,
+    suffix: (plainMatch[3] || "").trim(),
+  };
+}
+
+function parseLeadingAtBeforeMemeByElements(
+  elements: readonly ElementLike[] = [],
+): LeadingAtCommandParts | undefined {
+  if (elements.length < 2) return undefined;
+
+  const atElements: ElementLike[] = [];
+  let index = 0;
+  for (; index < elements.length; index += 1) {
+    const element = elements[index];
+    if (element?.type !== "at") break;
+    atElements.push(element);
+  }
+
+  if (atElements.length === 0) return undefined;
+
+  let commandText = "";
+  let suffix = "";
+  let foundCommandText = false;
+  for (; index < elements.length; index += 1) {
+    const element = elements[index];
+    if (element?.type !== "text") return undefined;
+
+    const rawContent = element.attrs?.content;
+    const textContent =
+      typeof rawContent === "string" ? rawContent.trimStart() : "";
+    if (!textContent) continue;
+
+    const match = textContent.match(/^(\S+)([\s\S]*)$/i);
+    if (!match) return undefined;
+
+    commandText = (match[1] || "").trim();
+    suffix = (match[2] || "").trim();
+    foundCommandText = true;
+    break;
+  }
+
+  if (!foundCommandText || !commandText) return undefined;
+
+  const leadingAtSegments = atElements
+    .map((element) => {
+      const id = element.attrs?.id;
+      return id ? `<at id="${id}"/>` : "";
+    })
+    .filter(Boolean);
+  if (leadingAtSegments.length === 0) return undefined;
+
+  return {
+    leadingAtSegments,
+    commandText,
+    suffix,
+  };
 }
 
 export function registerCommands(ctx: Context, config: Config): void {
@@ -87,6 +213,110 @@ export function registerCommands(ctx: Context, config: Config): void {
   const handleRuntimeError = (scope: string, error: unknown): string => {
     return handleErrorReply(scope, mapRuntimeErrorMessage(error));
   };
+
+  ctx.middleware(async (session, next) => {
+    const sessionTextContent = resolveSessionTextContent(session);
+    const strippedContent =
+      typeof session.stripped?.content === "string"
+        ? session.stripped.content.trim()
+        : "";
+    const sessionElements = Array.isArray(session.elements)
+      ? (session.elements as ElementLike[])
+      : [];
+    const contentMatched = parseLeadingAtBeforeMemeCommand(sessionTextContent);
+    const elementsMatched = parseLeadingAtBeforeMemeByElements(sessionElements);
+    const leadingAtParts = contentMatched || elementsMatched;
+
+    if (config.enableDeveloperDebugLog) {
+      logger.info(
+        "leading-at debug: content=%s stripped=%s contentMatched=%s elementsMatched=%s matched=%s allow=%s",
+        JSON.stringify(sessionTextContent),
+        JSON.stringify(strippedContent),
+        String(Boolean(contentMatched)),
+        String(Boolean(elementsMatched)),
+        String(Boolean(leadingAtParts)),
+        String(config.allowLeadingAtBeforeCommand),
+      );
+      logger.info(
+        "leading-at debug: elements-count=%s elements-types=%s",
+        String(sessionElements.length),
+        JSON.stringify(sessionElements.map((element) => element?.type || "")),
+      );
+      if (contentMatched) {
+        logger.info(
+          "leading-at debug: content command=%s suffix=%s segments=%s",
+          JSON.stringify(contentMatched.commandText),
+          JSON.stringify(contentMatched.suffix),
+          JSON.stringify(contentMatched.leadingAtSegments),
+        );
+      }
+      if (elementsMatched) {
+        logger.info(
+          "leading-at debug: elements command=%s suffix=%s segments=%s",
+          JSON.stringify(elementsMatched.commandText),
+          JSON.stringify(elementsMatched.suffix),
+          JSON.stringify(elementsMatched.leadingAtSegments),
+        );
+      }
+    }
+
+    if (!leadingAtParts) {
+      if (config.enableDeveloperDebugLog) {
+        logger.info("leading-at debug: pass-through middleware");
+      }
+      return await next();
+    }
+
+    const isMentioningSelf = Boolean(session.stripped?.atSelf);
+    const isMemeCommand = /^meme$/i.test(leadingAtParts.commandText.trim());
+
+    if (isMentioningSelf && !isMemeCommand) {
+      if (config.enableDeveloperDebugLog) {
+        logger.info("leading-at debug: pass-through at-self non-meme");
+      }
+      return await next();
+    }
+
+    if (!config.allowLeadingAtBeforeCommand) {
+      if (config.enableDeveloperDebugLog) {
+        logger.info(
+          "leading-at debug: blocked by allowLeadingAtBeforeCommand=false",
+        );
+      }
+      const message = handleErrorReply(
+        "meme.generate",
+        "不支持前置@参数，请使用 meme @用户 的格式。",
+      );
+      if (message) await session.send(message);
+      return;
+    }
+
+    const normalizedCommandText = leadingAtParts.commandText.trim();
+    const normalizedSuffix = leadingAtParts.suffix.trim();
+    const rewrittenCommand = /^meme$/i.test(normalizedCommandText)
+      ? normalizedSuffix
+        ? `meme ${normalizedSuffix}`
+        : "meme"
+      : normalizedSuffix
+        ? `meme ${normalizedCommandText} ${normalizedSuffix}`
+        : `meme ${normalizedCommandText}`;
+
+    if (config.enableDeveloperDebugLog) {
+      logger.info(
+        "leading-at debug: rewritten=%s",
+        JSON.stringify(rewrittenCommand),
+      );
+    }
+
+    const executed = await session.execute(rewrittenCommand);
+    if (config.enableDeveloperDebugLog) {
+      logger.info(
+        "leading-at debug: execute returned=%s",
+        JSON.stringify(executed),
+      );
+    }
+    if (executed) await session.send(executed);
+  });
 
   const executePreview = async (
     key: string,
@@ -339,17 +569,6 @@ export function registerCommands(ctx: Context, config: Config): void {
     .action(async ({ session }, key, ...texts) => {
       if (!session)
         return handleErrorReply("meme.generate", "当前上下文不可用。");
-      if (!key) return handleErrorReply("meme.generate", "请提供模板 key。");
-
-      if (
-        config.disallowLeadingAtBeforeCommand &&
-        hasLeadingAtBeforeMemeCommand(session)
-      ) {
-        return handleErrorReply(
-          "meme.generate",
-          "不支持前置@参数，请使用 meme @用户 的格式。",
-        );
-      }
       try {
         await ensureCategoryExcludedMemeKeySet();
         const resolvedKey = await resolveMemeKey(key);

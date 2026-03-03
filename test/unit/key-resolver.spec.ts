@@ -39,10 +39,11 @@ function createInfoResponse(
 }
 
 describe("shouldRegisterDirectAlias", () => {
-  it("仅允许长度不少于2且无空白的非纯英文数字别名", () => {
+  it("仅允许无空白的非纯英文数字别名", () => {
     expect(shouldRegisterDirectAlias("骑猪")).toBe(true);
     expect(shouldRegisterDirectAlias("5000兆")).toBe(true);
-    expect(shouldRegisterDirectAlias("看")).toBe(false);
+    expect(shouldRegisterDirectAlias("滚")).toBe(true);
+    expect(shouldRegisterDirectAlias("揍")).toBe(true);
     expect(shouldRegisterDirectAlias("qizhu")).toBe(false);
     expect(shouldRegisterDirectAlias("google image")).toBe(false);
     expect(shouldRegisterDirectAlias("   ")).toBe(false);

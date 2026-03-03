@@ -69,7 +69,11 @@ function extractDirectAliasTexts(
   session: Session,
   alias: string,
   allowMergedSuffix: boolean,
+  allowLeadingAtBeforeCommand: boolean,
 ): string[] | undefined {
+  if (!allowLeadingAtBeforeCommand && session.stripped?.atSelf)
+    return undefined;
+
   const strippedContent = session.stripped?.content;
   if (typeof strippedContent !== "string") return undefined;
 
@@ -229,20 +233,58 @@ export function installDirectAliasRuntime(
         ? createMergedDirectAliasPattern(entry.alias)
         : createStrictDirectAliasPattern(entry.alias);
 
-      const disposeMatch = ctx.$processor.match(
+      const matcherContext =
+        !config.allowLeadingAtBeforeCommand &&
+        typeof (ctx as any).exclude === "function"
+          ? (ctx as any).exclude((session: Session) =>
+              Boolean(session.stripped?.atSelf),
+            )
+          : ctx;
+
+      const disposeMatch = matcherContext.$processor.match(
         directAliasPattern,
-        async (session) => {
+        async (session: Session) => {
+          if (config.enableDeveloperDebugLog) {
+            logger.info(
+              "direct-alias debug: alias=%s stripped=%s atSelf=%s hasAt=%s appel=%s allowLeadingAt=%s",
+              entry.alias,
+              JSON.stringify(session.stripped?.content || ""),
+              String(Boolean(session.stripped?.atSelf)),
+              String(Boolean(session.stripped?.hasAt)),
+              String(Boolean(session.stripped?.appel)),
+              String(config.allowLeadingAtBeforeCommand),
+            );
+          }
+
           const directAliasTexts = extractDirectAliasTexts(
             session,
             entry.alias,
             config.allowMentionPrefixDirectAliasTrigger,
+            config.allowLeadingAtBeforeCommand,
           );
-          if (!directAliasTexts) return "";
+          if (!directAliasTexts) {
+            if (config.enableDeveloperDebugLog) {
+              logger.info(
+                "direct-alias debug: bypass/skip alias=%s",
+                entry.alias,
+              );
+            }
+            return undefined as unknown as string;
+          }
 
           const pickedKey =
             aliasKeys.length === 1
               ? aliasKeys[0]
               : aliasKeys[Math.floor(Math.random() * aliasKeys.length)];
+
+          if (config.enableDeveloperDebugLog) {
+            logger.info(
+              "direct-alias debug: trigger alias=%s key=%s texts=%s",
+              entry.alias,
+              pickedKey,
+              JSON.stringify(directAliasTexts),
+            );
+          }
 
           return (
             (await handleGenerate(session, pickedKey, directAliasTexts)) ?? ""

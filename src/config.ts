@@ -22,10 +22,13 @@ export interface Config {
   autoFillOneMissingImageWithAvatar: boolean;
   autoFillSenderAndBotAvatarsWhenMinImagesTwoAndNoImage: boolean;
   autoUseGroupNicknameWhenNoDefaultText: boolean;
+  enableQuotedImageTrigger: boolean;
+  enableQuotedTextTrigger: boolean;
   renderMemeListAsImage: boolean;
   enableDirectAliasWithoutPrefix: boolean;
   allowMentionPrefixDirectAliasTrigger: boolean;
-  disallowLeadingAtBeforeCommand: boolean;
+  allowLeadingAtBeforeCommand: boolean;
+  enableDeveloperDebugLog: boolean;
   enableMemeXmlTool: boolean;
   memeXmlReferencePrompt?: string;
   enableRandomDedupeWithinHours: boolean;
@@ -60,10 +63,13 @@ export const defaultConfig: Config = {
   autoFillOneMissingImageWithAvatar: true,
   autoFillSenderAndBotAvatarsWhenMinImagesTwoAndNoImage: true,
   autoUseGroupNicknameWhenNoDefaultText: true,
+  enableQuotedImageTrigger: true,
+  enableQuotedTextTrigger: false,
   renderMemeListAsImage: true,
   enableDirectAliasWithoutPrefix: true,
   allowMentionPrefixDirectAliasTrigger: false,
-  disallowLeadingAtBeforeCommand: true,
+  allowLeadingAtBeforeCommand: false,
+  enableDeveloperDebugLog: false,
   enableMemeXmlTool: false,
   memeXmlReferencePrompt:
     '可用 XML 工具调用格式：<meme key="memekey" text="text1|text2" image="url1|url2" at="userid1|userid2"/>\n支持参数：key、text、image、at\n示例：<meme key="can_can_need" at="123456"/>\n如果缺少参数，会按预设的补全设置自动补全',
@@ -118,6 +124,12 @@ const textSchema = Schema.object({
   autoUseGroupNicknameWhenNoDefaultText: Schema.boolean()
     .default(defaultConfig.autoUseGroupNicknameWhenNoDefaultText)
     .description("模板无默认文字时是否优先使用群昵称补文案"),
+  enableQuotedImageTrigger: Schema.boolean()
+    .default(defaultConfig.enableQuotedImageTrigger)
+    .description("是否允许引用消息中的图片参与触发"),
+  enableQuotedTextTrigger: Schema.boolean()
+    .default(defaultConfig.enableQuotedTextTrigger)
+    .description("是否在未提供文本参数时使用引用消息文字触发"),
 }).description("文本补全设置");
 
 const imageSchema = Schema.object({
@@ -155,10 +167,10 @@ const triggerSchema = Schema.object({
     .description("是否允许中文别名跳过指令前缀直接触发"),
   allowMentionPrefixDirectAliasTrigger: Schema.boolean()
     .default(defaultConfig.allowMentionPrefixDirectAliasTrigger)
-    .description("是否允许贴合参数触发（如 看看你的xxxx@user1@user2）"),
-  disallowLeadingAtBeforeCommand: Schema.boolean()
-    .default(defaultConfig.disallowLeadingAtBeforeCommand)
-    .description("是否禁止前置@参数触发（如 @用户 meme）"),
+    .description("是否允许贴合参数触发（如 meme@用户1@用户2文本参数）"),
+  allowLeadingAtBeforeCommand: Schema.boolean()
+    .default(defaultConfig.allowLeadingAtBeforeCommand)
+    .description("是否允许前置@参数触发（如 @用户 meme）"),
   enableMemeXmlTool: Schema.boolean()
     .default(defaultConfig.enableMemeXmlTool)
     .description("是否启用 XML 形式的 meme 工具调用"),
@@ -206,6 +218,9 @@ const runtimeSchema = Schema.object({
   renderMemeListAsImage: Schema.boolean()
     .default(defaultConfig.renderMemeListAsImage)
     .description("meme.list 是否以图片形式输出"),
+  enableDeveloperDebugLog: Schema.boolean()
+    .default(defaultConfig.enableDeveloperDebugLog)
+    .description("开启调试日志"),
 }).description("其他设置");
 
 export const ConfigSchema: Schema<Config> = Schema.intersect([

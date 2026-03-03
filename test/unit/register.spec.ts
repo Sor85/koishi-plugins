@@ -114,6 +114,10 @@ interface MatchOptions {
 }
 
 type MatchHandler = (session: unknown) => Promise<unknown>;
+type MiddlewareHandler = (
+  session: any,
+  next: () => Promise<unknown>,
+) => Promise<unknown>;
 
 function createMockContext() {
   const readyHandlers: Array<() => void> = [];
@@ -223,10 +227,13 @@ function createBaseConfig(overrides: Partial<Config> = {}): Config {
     autoFillOneMissingImageWithAvatar: false,
     autoFillSenderAndBotAvatarsWhenMinImagesTwoAndNoImage: false,
     autoUseGroupNicknameWhenNoDefaultText: false,
+    enableQuotedImageTrigger: true,
+    enableQuotedTextTrigger: false,
     renderMemeListAsImage: false,
     enableDirectAliasWithoutPrefix: true,
     allowMentionPrefixDirectAliasTrigger: false,
-    disallowLeadingAtBeforeCommand: true,
+    allowLeadingAtBeforeCommand: false,
+    enableDeveloperDebugLog: false,
     enableMemeXmlTool: false,
     enableRandomDedupeWithinHours: false,
     randomDedupeWindowHours: 24,
@@ -263,6 +270,33 @@ function createSession(content: string, elements: any[] = []) {
       user: {},
       getLogin: vi.fn(async () => ({ user: {} })),
     },
+  };
+}
+
+function createMiddlewareSession(
+  content: string,
+  executeResult = "",
+  elements: any[] = [],
+  strippedOverrides: Partial<{
+    hasAt: boolean;
+    atSelf: boolean;
+    appel: boolean;
+    content: string;
+  }> = {},
+  rawContent?: string,
+): any {
+  return {
+    content: rawContent ?? content,
+    stripped: {
+      content,
+      hasAt: true,
+      atSelf: false,
+      appel: false,
+      ...strippedOverrides,
+    },
+    elements,
+    send: vi.fn(async () => undefined),
+    execute: vi.fn(async () => executeResult),
   };
 }
 
@@ -671,91 +705,232 @@ describe("registerCommands", () => {
     );
   });
 
-  it("开启前置@拦截时应拒绝 @用户 meme 前置参数格式", async () => {
-    const commandActions = new Map<
-      string,
-      (...args: any[]) => Promise<unknown>
-    >();
-    const { ctx } = createMockContext();
-    ctx.command = vi.fn((name: string) => ({
-      action: vi.fn((handler: (...args: any[]) => Promise<unknown>) => {
-        commandActions.set(name, handler);
-        return { action: vi.fn() };
-      }),
-    }));
+  it("关闭前置@允许时 @用户 meme 应拦截并返回提示", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
 
     registerCommands(
       ctx,
       createBaseConfig({
-        disallowLeadingAtBeforeCommand: true,
+        allowLeadingAtBeforeCommand: false,
       }),
     );
 
-    const generateAction = commandActions.get("meme <key:string> [...texts]");
-    expect(generateAction).toBeDefined();
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession(
+      '<at id="10001"/> meme can_can_need',
+      "",
+      [],
+      { atSelf: false },
+    );
+    const next = vi.fn(async () => undefined);
 
-    const session = createSession('<at id="10001"/> meme can_can_need', [
-      { type: "at", attrs: { id: "10001", name: "user1" }, children: [] },
-    ]);
+    await middleware(session, next);
 
-    const result = await generateAction!({ session }, "can_can_need");
-
-    expect(String(result)).toContain("不支持前置@参数");
-    expect(generateMock).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(session.execute).not.toHaveBeenCalled();
+    expect(session.send).toHaveBeenCalledWith(
+      "不支持前置@参数，请使用 meme @用户 的格式。",
+    );
   });
 
-  it("关闭前置@拦截时应允许 @用户 meme 前置参数格式", async () => {
-    const commandActions = new Map<
-      string,
-      (...args: any[]) => Promise<unknown>
-    >();
-    const { ctx } = createMockContext();
-    ctx.command = vi.fn((name: string) => ({
-      action: vi.fn((handler: (...args: any[]) => Promise<unknown>) => {
-        commandActions.set(name, handler);
-        return { action: vi.fn() };
-      }),
-    }));
+  it("关闭前置@允许时 @bot meme 应拦截并返回提示", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
 
     registerCommands(
       ctx,
       createBaseConfig({
-        disallowLeadingAtBeforeCommand: false,
+        allowLeadingAtBeforeCommand: false,
       }),
     );
 
-    const generateAction = commandActions.get("meme <key:string> [...texts]");
-    expect(generateAction).toBeDefined();
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession(
+      '<at id="10000"/> meme can_can_need',
+      '<img src="ok"/>',
+      [],
+      { atSelf: true },
+    );
+    const next = vi.fn(async () => undefined);
 
-    const session = createSession('<at id="10001"/> meme can_can_need', [
-      { type: "at", attrs: { id: "10001", name: "user1" }, children: [] },
-    ]);
+    await middleware(session, next);
 
-    await generateAction!({ session }, "can_can_need");
-
-    expect(generateMock).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(session.execute).not.toHaveBeenCalled();
+    expect(session.send).toHaveBeenCalledWith(
+      "不支持前置@参数，请使用 meme @用户 的格式。",
+    );
   });
 
-  it("默认关闭贴合触发时不应处理骑猪123", async () => {
-    const { ctx, readyHandlers, matchHandlers, matchCalls } =
-      createMockContext();
+  it("开启前置@允许时中间件应改写并执行指令", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
 
     registerCommands(
       ctx,
-      createBaseConfig({ allowMentionPrefixDirectAliasTrigger: false }),
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: true,
+      }),
+    );
+
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession(
+      '<at id="10001"/> meme can_can_need',
+      '<img src="ok"/>',
+    );
+    const next = vi.fn(async () => undefined);
+
+    await middleware(session, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(session.execute).toHaveBeenCalledWith("meme can_can_need");
+    expect(session.send).toHaveBeenCalledWith('<img src="ok"/>');
+  });
+
+  it("开启前置@允许时仅有前置@也应改写为 meme + @参数", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: true,
+      }),
+    );
+
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession('<at id="10001"/> meme', "ok");
+    const next = vi.fn(async () => undefined);
+
+    await middleware(session, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(session.execute).toHaveBeenCalledWith("meme");
+    expect(session.send).toHaveBeenCalledWith("ok");
+  });
+
+  it("开启前置@允许时应兼容 elements 兜底解析", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: true,
+      }),
+    );
+
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession("meme can_can_need", "ok", [
+      { type: "at", attrs: { id: "10001" } },
+      { type: "text", attrs: { content: " meme can_can_need" } },
+    ]);
+    const next = vi.fn(async () => undefined);
+
+    await middleware(session, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(session.execute).toHaveBeenCalledWith("meme can_can_need");
+    expect(session.send).toHaveBeenCalledWith("ok");
+  });
+
+  it("关闭前置@允许时 stripped 无前置@但 content 有前置@仍应拦截", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: false,
+      }),
+    );
+
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession(
+      "meme can_can_need",
+      "",
+      [],
+      { atSelf: false },
+      '<at id="10001"/> meme can_can_need',
+    );
+    const next = vi.fn(async () => undefined);
+
+    await middleware(session, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(session.execute).not.toHaveBeenCalled();
+    expect(session.send).toHaveBeenCalledWith(
+      "不支持前置@参数，请使用 meme @用户 的格式。",
+    );
+  });
+
+  it("开启前置@允许时 @bot 非meme消息应放行给下游", async () => {
+    const { ctx, middlewareHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: true,
+      }),
+    );
+
+    expect(middlewareHandlers).toHaveLength(1);
+    const middleware = middlewareHandlers[0] as MiddlewareHandler;
+    const session = createMiddlewareSession('<at id="10000"/> 你好', "", [], {
+      atSelf: true,
+    });
+    const next = vi.fn(async () => "next-ok");
+
+    await middleware(session, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(session.execute).not.toHaveBeenCalled();
+    expect(session.send).not.toHaveBeenCalled();
+  });
+
+  it("关闭前置@允许时 @bot 别名直触发应被禁用且不吞消息", async () => {
+    const { ctx, readyHandlers, matchHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: false,
+      }),
     );
     await flushReadyHandlers(readyHandlers);
 
     expect(matchHandlers).toHaveLength(1);
-    expect(matchCalls[0].pattern).toBeInstanceOf(RegExp);
-    const pattern = matchCalls[0].pattern as RegExp;
-    expect(pattern.test("骑猪123")).toBe(false);
-    expect(pattern.test("骑猪 123")).toBe(true);
+    const session = createSession("骑猪", [
+      { type: "at", attrs: { id: "10000", name: "bot" }, children: [] },
+    ]);
+    session.stripped.atSelf = true;
 
-    const session = createSession("骑猪123");
     const result = await matchHandlers[0](session);
-    expect(result).toBe("");
+
+    expect(result).toBeUndefined();
     expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it("开启前置@允许时 @bot 别名直触发应允许", async () => {
+    const { ctx, readyHandlers, matchHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        allowLeadingAtBeforeCommand: true,
+      }),
+    );
+    await flushReadyHandlers(readyHandlers);
+
+    expect(matchHandlers).toHaveLength(1);
+    const session = createSession("骑猪", [
+      { type: "at", attrs: { id: "10000", name: "bot" }, children: [] },
+    ]);
+    session.stripped.atSelf = true;
+
+    await expect(matchHandlers[0](session)).resolves.toBeTruthy();
+    expect(generateMock).toHaveBeenCalledWith("qizhu", [], [], {});
   });
 
   it("开启贴合触发后允许骑猪123，并且不注册前置@中间件", async () => {
@@ -773,7 +948,7 @@ describe("registerCommands", () => {
     );
     await flushReadyHandlers(readyHandlers);
 
-    expect(middlewareHandlers).toHaveLength(0);
+    expect(middlewareHandlers).toHaveLength(1);
     expect(matchHandlers).toHaveLength(1);
     expect(matchCalls[0].pattern).toBeInstanceOf(RegExp);
     const pattern = matchCalls[0].pattern as RegExp;
@@ -816,7 +991,7 @@ describe("registerCommands", () => {
     ]);
 
     const result = await matchHandlers[0](session);
-    expect(result).toBe("");
+    expect(result).toBeUndefined();
     expect(generateMock).not.toHaveBeenCalled();
   });
 

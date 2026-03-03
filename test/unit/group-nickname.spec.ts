@@ -89,6 +89,7 @@ function createMockContext() {
     $processor: {
       match: vi.fn(() => vi.fn()),
     },
+    middleware: vi.fn(),
     on: vi.fn(),
   };
 
@@ -115,9 +116,13 @@ function createBaseConfig(): Config {
     autoFillOneMissingImageWithAvatar: false,
     autoFillSenderAndBotAvatarsWhenMinImagesTwoAndNoImage: false,
     autoUseGroupNicknameWhenNoDefaultText: true,
+    enableQuotedImageTrigger: true,
+    enableQuotedTextTrigger: false,
     renderMemeListAsImage: false,
     enableDirectAliasWithoutPrefix: false,
     allowMentionPrefixDirectAliasTrigger: false,
+    allowLeadingAtBeforeCommand: false,
+    enableDeveloperDebugLog: false,
     enableMemeXmlTool: false,
     enableRandomDedupeWithinHours: false,
     randomDedupeWindowHours: 24,

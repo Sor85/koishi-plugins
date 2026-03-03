@@ -48,15 +48,16 @@ meme.random
 
 ## 更新日志
 
+### 0.0.8
+
+- 修复 `allowLeadingAtBeforeCommand` 与前置@触发逻辑：开启时支持 `@用户 别名` 与 `@用户 meme`，并正确改写到 meme 指令链路。
+- 修复 `@bot` 对话被误拦截问题：在关闭 `allowLeadingAtBeforeCommand` 时，`@bot 别名` 不再被插件吞消息，恢复 bot 正常对话；开启时可按配置触发别名。
+- 完善前置@与直连别名相关调试日志与单元测试覆盖，包含 `@bot`/`@用户`、开关双态与不吞消息场景。
+
 ### 0.0.7
 
-- 移除 `enableInfoFetchConcurrencyLimit` 配置项，改为 `infoFetchConcurrency=0` 表示不限制并发（默认值为 `0`）。
-- 补齐三方戳一戳触发 `meme.random` 的兼容链路：昵称优先使用可读群昵称回退，需图模板可回退操作者头像参与补图。
-
-### 0.0.6
-
-- 新增 `disallowLeadingAtBeforeCommand` 开关（默认开启），用于禁止前置@参数格式（如 `@用户 meme`）。
-- 新增前置@参数拦截逻辑与开关双态单元测试，关闭该开关后可恢复兼容前置@参数格式。
+- 新增 `allowLeadingAtBeforeCommand` 开关（默认关闭），用于允许前置@参数格式（如 `@用户 meme`）。
+- 新增前置@参数拦截逻辑与开关双态单元测试，开启该开关后可恢复兼容前置@参数格式。
 
 ### 0.0.5
 
