@@ -104,21 +104,24 @@ MIT © 2024-present chatluna-affinity contributors
 > 以下为历史版本记录，当前可用能力请以本文上方「变量与模板占位符 / 指令 / 工具」章节为准。
 
 0.2.6
-- 新增
-  - 新增黑名单、关系调整 XML 工具调用
-  - 新增黑名单临时拉黑能力（XML/原生工具）
-  - 新增 blacklistList 变量（当前群黑名单信息）
-  - 新增用户自定义昵称能力：userAlias XML 工具 + userAlias 变量，数据持久化到数据库
-- 调整
-  - 黑名单能力改为由 Bot 通过 XML/工具自主决策（含永久/临时与解除）
-  - 黑名单相关数据由配置存储迁移为数据库存储
-  - 独立 contextAffinity 变量能力并入 affinity 变量
-  - 日程、天气能力拆分至 koishi-plugin-chatluna-schedule
-  - 更多变量与 XML 工具能力拆分至 koishi-plugin-chatluna-toolbox
-- 移除
-  - 移除天气、日程、冗余变量与冗余工具（由拆分插件承接）
-  - 移除设置好感度工具
-  - 移除自动拉黑逻辑，改为由 Bot 决策触发
+
+### 新增
+- 黑名单、关系调整 XML 工具调用。
+- 黑名单临时拉黑能力（XML/原生工具）。
+- `blacklistList` 变量（当前群黑名单信息）。
+- 用户自定义昵称能力：`userAlias` XML 工具 + `userAlias` 变量，数据持久化到数据库。
+
+### 调整
+- 黑名单能力改为由 Bot 通过 XML/工具自主决策（含永久/临时与解除）。
+- 黑名单相关数据由配置存储迁移为数据库存储。
+- `contextAffinity` 变量能力并入 `affinity` 变量。
+- 日程、天气能力拆分至 `koishi-plugin-chatluna-schedule`。
+- 更多变量与 XML 工具能力拆分至 `koishi-plugin-chatluna-toolbox`。
+
+### 移除
+- 天气、日程、冗余变量与冗余工具（由拆分插件承接）。
+- 设置好感度工具。
+- 自动拉黑逻辑，改为由 Bot 决策触发。
 
 0.2.5
 - 将 puppeteer 从可选依赖改为可选服务
