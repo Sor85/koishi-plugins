@@ -5,12 +5,11 @@
 
 import * as path from "path";
 import { Context, Session } from "koishi";
-import { ChatLunaPlugin } from "koishi-plugin-chatluna/services/chat";
 
 import type { Config } from "./types";
 import { BASE_AFFINITY_DEFAULTS } from "./constants";
 import { registerModels } from "./models";
-import { createLogger } from "./helpers";
+import { assertScopeId, createLogger } from "./helpers";
 import { stripAtPrefix } from "./utils";
 import { createAffinityStore } from "./services/affinity/store";
 import { createAffinityCache } from "./services/affinity/cache";
@@ -20,11 +19,14 @@ import {
 } from "./services/affinity/calculator";
 import { applyAffinityDelta } from "./services/affinity/apply-delta";
 import { createMessageHistory } from "./services/message/history";
+import { createCharacterModelResponseRuntime } from "./services/model-response/log-hook";
 import { createBlacklistService } from "./services/blacklist/repository";
 import { createBlacklistGuard } from "./services/blacklist/guard";
+import { createPermanentUnblockHandler } from "./services/blacklist/unblock-permanent";
 import { createUserAliasService } from "./services/user-alias/repository";
 import { createLevelResolver } from "./services/relationship/level-resolver";
 import { createManualRelationshipManager } from "./services/relationship/manual-config";
+import { createMigrationService } from "./services/migration";
 import { createRenderService } from "./renders";
 import {
   createAffinityProvider,
@@ -32,10 +34,6 @@ import {
   createBlacklistListProvider,
   createUserAliasProvider,
 } from "./integrations/chatluna/variables";
-import {
-  createRelationshipTool,
-  createBlacklistTool,
-} from "./integrations/chatluna/tools";
 import {
   registerRankCommand,
   registerInspectCommand,
@@ -93,17 +91,6 @@ function normalizeBaseAffinityConfig(config: Config): void {
 }
 
 function normalizeToolSettings(config: Config): void {
-  const nativeToolSettings = {
-    registerRelationshipTool:
-      config.nativeToolSettings?.registerRelationshipTool ?? false,
-    relationshipToolName:
-      config.nativeToolSettings?.relationshipToolName || "relationship",
-    registerBlacklistTool:
-      config.nativeToolSettings?.registerBlacklistTool ?? false,
-    blacklistToolName:
-      config.nativeToolSettings?.blacklistToolName || "blacklist",
-  };
-
   const xmlToolSettings = {
     enableAffinityXmlToolCall:
       config.xmlToolSettings?.enableAffinityXmlToolCall ?? true,
@@ -126,11 +113,11 @@ function normalizeToolSettings(config: Config): void {
       (config as unknown as { affinityVariableName?: string })
         .affinityVariableName ||
       "affinity",
-    relationshipAffinityLevelVariableName:
-      config.variableSettings?.relationshipAffinityLevelVariableName ||
-      (config as unknown as { relationshipAffinityLevelVariableName?: string })
-        .relationshipAffinityLevelVariableName ||
-      "relationshipAffinityLevel",
+    relationshipLevelVariableName:
+      config.variableSettings?.relationshipLevelVariableName ||
+      (config as unknown as { relationshipLevelVariableName?: string })
+        .relationshipLevelVariableName ||
+      "relationshipLevel",
     blacklistListVariableName:
       config.variableSettings?.blacklistListVariableName ||
       (config as unknown as { blacklistListVariableName?: string })
@@ -143,7 +130,6 @@ function normalizeToolSettings(config: Config): void {
       "userAlias",
   };
 
-  config.nativeToolSettings = nativeToolSettings;
   config.xmlToolSettings = xmlToolSettings;
   config.variableSettings = variableSettings;
 }
@@ -167,13 +153,23 @@ function parseSelfClosingXmlTags(
   });
 }
 
+function resolveXmlScopeId(
+  attrs: Record<string, string>,
+  config: Config,
+): string | null {
+  const rawScopeId = String(attrs.scopeId || "").trim();
+  if (!rawScopeId) return null;
+  if (rawScopeId !== config.scopeId) return null;
+  return rawScopeId;
+}
+
 export function apply(ctx: Context, config: Config): void {
+  const runtimeFingerprint =
+    "chatluna-affinity fingerprint: 2026-03-08-runtime-check-a";
+  config.scopeId = assertScopeId(config.scopeId);
   normalizeBaseAffinityConfig(config);
   normalizeToolSettings(config);
   registerModels(ctx);
-
-  // @ts-expect-error - Config type compatibility with ChatLunaPlugin
-  const plugin = new ChatLunaPlugin(ctx, config, "affinity", false);
 
   ctx.inject(["console"], (innerCtx) => {
     const consoleService = (
@@ -189,12 +185,23 @@ export function apply(ctx: Context, config: Config): void {
 
   const log = createLogger(ctx, config);
 
+  log("info", runtimeFingerprint);
+
   log(
     "warn",
-    "⚠️ 升级提示：0.2.1-alpha.10 版本后数据库结构已重构，若出现数据库相关错误，请执行 affinity.clearall 命令清除数据后重试。好感度分析提示词已更新，若您自定义过提示词，请将其恢复默认以应用最新版本。",
+    "⚠️ 升级提示：已启用 v2 数据表与迁移逻辑。旧表数据会迁移到新表，若需查看旧表请直接使用数据库工具。",
   );
   const cache = createAffinityCache();
-  const store = createAffinityStore({ ctx, config, log });
+  const store = createAffinityStore({
+    ctx,
+    config,
+    log,
+  });
+  const migration = createMigrationService({
+    ctx,
+    scopeId: config.scopeId,
+    log,
+  });
   const shortTermConfig = resolveShortTermConfig(config);
   const actionWindowConfig = resolveActionWindowConfig(config);
   const history = createMessageHistory({ ctx, config, log });
@@ -212,8 +219,16 @@ export function apply(ctx: Context, config: Config): void {
     config,
     log,
   });
+  const unblockPermanent = createPermanentUnblockHandler({
+    config,
+    log,
+    store,
+    cache,
+    blacklist,
+  });
   const userAlias = createUserAliasService({
     ctx,
+    scopeId: config.scopeId,
     log,
   });
   const renders = createRenderService({ ctx, log });
@@ -240,25 +255,25 @@ export function apply(ctx: Context, config: Config): void {
 
   const affinityInitCache = new Set<string>();
   const makeAffinityInitKey = (session: Session): string =>
-    `${session.platform || "unknown"}:${session.selfId || "self"}:${session.userId || "unknown"}`;
+    `${config.scopeId}:${session.userId || "unknown"}`;
 
   ctx.middleware(async (session, next) => {
     if (config.affinityEnabled) {
       const platform = session?.platform;
       const userId = session?.userId;
-      const selfId = session?.selfId;
-      if (platform && userId && selfId && userId !== selfId) {
+      if (platform && userId && userId !== session?.selfId) {
         const key = makeAffinityInitKey(session);
         if (!affinityInitCache.has(key)) {
           affinityInitCache.add(key);
           try {
             const state = await store.ensureForUser(
+              config.scopeId,
               session,
               userId,
               (value, low, high) => Math.min(Math.max(value, low), high),
             );
             if (state.isNew && config.debugLogging) {
-              log("debug", "已初始化好感度记录", { platform, selfId, userId });
+              log("debug", "已初始化好感度记录", { platform, userId });
             }
           } catch (error) {
             affinityInitCache.delete(key);
@@ -270,402 +285,430 @@ export function apply(ctx: Context, config: Config): void {
     return next();
   });
 
-  let rawModelResponseGuildId: string | null = null;
-  const rawModelResponseSessionMap = new Map<string, Session>();
-  let rawInterceptorMonitorHandle: (() => void) | null = null;
-  let rawInterceptorFastRetryHandle: (() => void) | null = null;
-  let rawInterceptorReady = false;
-  let rawInterceptorService: unknown | null = null;
-  let rawInterceptorLogger: { debug?: (...args: unknown[]) => void } | null =
-    null;
-  let rawInterceptorOriginalDebug: ((...args: unknown[]) => void) | null = null;
-  let rawCollectorBound = false;
-  let rawInterceptorDisposeBound = false;
-  const RAW_INTERCEPTOR_TAG = "__chatlunaAffinityRawInterceptor";
-  const RAW_INTERCEPTOR_MONITOR_INTERVAL = 5 * 1000;
-  const RAW_INTERCEPTOR_FAST_INTERVAL = 3 * 1000;
+  const processModelResponse = async (response: string): Promise<void> => {
+    if (!response) return;
 
-  const restoreRawModelInterceptor = (): void => {
-    if (rawInterceptorLogger && rawInterceptorOriginalDebug) {
-      rawInterceptorLogger.debug = rawInterceptorOriginalDebug;
-    }
-    rawInterceptorLogger = null;
-    rawInterceptorOriginalDebug = null;
-  };
+    const affinityTags = parseSelfClosingXmlTags(response, "affinity");
+    const blacklistTags = parseSelfClosingXmlTags(response, "blacklist");
+    const userAliasTags = parseSelfClosingXmlTags(response, "userAlias");
+    const relationshipTags = parseSelfClosingXmlTags(response, "relationship");
 
-  const isRawInterceptorActive = (): boolean => {
-    const characterService = (
-      ctx as unknown as {
-        chatluna_character?: {
-          logger?: {
-            debug?: (...args: unknown[]) => void;
-          };
-        };
-      }
-    ).chatluna_character;
-    const debugFn = characterService?.logger?.debug as unknown as
-      | { [key: string]: boolean }
-      | undefined;
-    return Boolean(debugFn?.[RAW_INTERCEPTOR_TAG]);
-  };
-
-  const initRawModelInterceptor = (): boolean => {
-    const characterService = (
-      ctx as unknown as {
-        chatluna_character?: {
-          collect?: (callback: (session: Session) => Promise<void>) => void;
-          logger?: {
-            debug: (...args: unknown[]) => void;
-          };
-        };
-      }
-    ).chatluna_character;
-    if (!characterService) return false;
-    if (rawInterceptorService !== characterService) {
-      rawInterceptorService = characterService;
-      rawCollectorBound = false;
-    }
-
-    if (!rawCollectorBound && typeof characterService.collect === "function") {
-      characterService.collect?.(async (session: Session) => {
-        const guildId =
-          (session as unknown as { guildId?: string })?.guildId ||
-          session?.channelId ||
-          session?.userId ||
-          null;
-        rawModelResponseGuildId = guildId;
-        if (guildId) rawModelResponseSessionMap.set(guildId, session);
+    if (config.debugLogging) {
+      log("debug", "拦截到模型输出事件", {
+        scopeId: config.scopeId,
+        length: response.length,
+        affinityTagCount: affinityTags.length,
+        blacklistTagCount: blacklistTags.length,
+        userAliasTagCount: userAliasTags.length,
+        relationshipTagCount: relationshipTags.length,
       });
-      rawCollectorBound = true;
     }
 
-    const characterLogger = characterService.logger;
-    if (!characterLogger || typeof characterLogger.debug !== "function")
-      return false;
+    try {
+      if (
+        config.affinityEnabled &&
+        config.xmlToolSettings.enableAffinityXmlToolCall
+      ) {
+        for (const attrs of affinityTags) {
+          const scopeId = resolveXmlScopeId(attrs, config);
+          const action = String(attrs.action || "")
+            .trim()
+            .toLowerCase();
+          const userId = String(
+            attrs.userId || attrs.id || attrs.targetUserId || "",
+          ).trim();
+          const platform = String(attrs.platform || "onebot").trim();
+          const delta = Number(attrs.delta || "");
+          const value = Number(attrs.value || "");
 
-    const taggedDebug = characterLogger.debug as unknown as {
-      [key: string]: boolean;
-    };
-    if (!taggedDebug[RAW_INTERCEPTOR_TAG]) {
-      restoreRawModelInterceptor();
-      const originalDebug = characterLogger.debug.bind(characterLogger);
-      const wrappedDebug = async (...args: unknown[]) => {
-        originalDebug(...args);
-        const message = args[0];
-        if (
-          typeof message !== "string" ||
-          !message.startsWith("model response: ")
-        )
-          return;
-        const response = message.substring("model response: ".length);
-        if (!response) return;
-        if (!rawModelResponseGuildId) {
-          log("warn", "拦截到原始输出但缺少会话上下文，XML 工具不会执行", {
-            length: response.length,
-          });
-          return;
-        }
-
-        const effectiveSession =
-          rawModelResponseSessionMap.get(rawModelResponseGuildId) || null;
-
-        if (!effectiveSession) {
-          log("warn", "检测到好感度标记但缺少会话上下文", {
-            guildId: rawModelResponseGuildId,
-          });
-          return;
-        }
-
-        if (config.debugLogging) {
-          log("debug", "拦截到原始输出", {
-            guildId: rawModelResponseGuildId,
-            length: response.length,
-          });
-        }
-
-        if (
-          config.affinityEnabled &&
-          config.xmlToolSettings.enableAffinityXmlToolCall
-        ) {
-          const affinityMatches = Array.from(
-            response.matchAll(
-              /<affinity\s+delta="([^"]+)"\s+action="(increase|decrease)"\s+id="([^"]+)"\s*\/>/gi,
-            ),
-          );
-          if (affinityMatches.length) {
-            for (const match of affinityMatches) {
-              const delta = parseInt(String(match[1] || "0").trim(), 10);
-              const action = String(match[2] || "increase")
-                .trim()
-                .toLowerCase() as "increase" | "decrease";
-              const userId = String(match[3] || "").trim();
-              if (!isNaN(delta) && delta > 0 && userId) {
-                void applyAffinityDelta({
-                  session: effectiveSession,
-                  userId,
-                  delta,
-                  action,
-                  store: {
-                    ensureForUser: store.ensureForUser,
-                    save: store.save as (
-                      seed: {
-                        platform: string;
-                        userId: string;
-                        selfId?: string;
-                        session?: Session;
-                      },
-                      value: number,
-                      relation: string,
-                      extra?: Record<string, unknown>,
-                    ) => Promise<unknown>,
-                    clamp: store.clamp,
-                  },
-                  levelResolver: {
-                    resolveLevelByAffinity:
-                      levelResolver.resolveLevelByAffinity,
-                  },
-                  maxIncrease: config.maxIncreasePerMessage || 5,
-                  maxDecrease: config.maxDecreasePerMessage || 3,
-                  maxActionEntries: actionWindowConfig.maxEntries,
-                  shortTermConfig,
-                  log,
-                }).catch((error) => {
-                  log("warn", "处理 affinity XML 动作失败", error);
-                });
-              }
-            }
+          if (config.debugLogging) {
+            log("debug", "开始处理 affinity XML", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              action,
+              userId,
+            });
           }
-        }
 
-        if (config.xmlToolSettings.enableBlacklistXmlToolCall) {
-          const blacklistTags = parseSelfClosingXmlTags(response, "blacklist");
-          for (const attrs of blacklistTags) {
-            const actionRaw = String(attrs.action || "")
-              .trim()
-              .toLowerCase();
-            const action =
-              actionRaw === "add" || actionRaw === "remove" ? actionRaw : "";
-            const modeRaw = String(attrs.mode || "permanent")
-              .trim()
-              .toLowerCase();
-            const mode =
-              modeRaw === "temporary" || modeRaw === "permanent" ? modeRaw : "";
-            const platform = String(attrs.platform || "onebot").trim();
-            const userId = String(attrs.id || attrs.targetUserId || "").trim();
-            const note = String(attrs.note || "xml").trim();
-            if (!action || !mode || !platform || !userId) continue;
+          if (!scopeId) {
+            log("warn", "忽略 affinity XML：scopeId 非法或不属于当前实例", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              action,
+              userId,
+            });
+            continue;
+          }
+          if (!userId || !action) {
+            log("warn", "忽略 affinity XML：缺少必要字段", {
+              scopeId,
+              action,
+              userId,
+            });
+            continue;
+          }
 
-            const channelId =
-              (effectiveSession as unknown as { guildId?: string })?.guildId ||
-              effectiveSession?.channelId ||
-              (effectiveSession as unknown as { roomId?: string })?.roomId ||
-              "";
-
-            if (mode === "temporary") {
-              if (action === "remove") {
-                await blacklist.removeTemporary(platform, userId);
-                cache.clear(platform, userId);
-                continue;
-              }
-
-              const durationRaw = Number(attrs.durationHours || "");
-              if (!Number.isFinite(durationRaw) || durationRaw <= 0) continue;
-              const durationHours = durationRaw;
-              const penalty = Math.max(
-                0,
-                Number(config.shortTermBlacklistPenalty ?? 5),
-              );
-
-              let nickname = "";
-              try {
-                const existing = await store.load(
-                  effectiveSession.selfId || "",
-                  userId,
-                );
-                nickname = existing?.nickname || "";
-              } catch {
-                /* ignore */
-              }
-
-              const entry = await blacklist.recordTemporary(
-                platform,
+          if (action === "set") {
+            if (!Number.isFinite(value)) {
+              log("warn", "忽略 affinity XML：set 缺少合法 value", {
+                scopeId,
+                action,
                 userId,
-                durationHours,
-                penalty,
-                {
-                  note,
-                  nickname,
-                  channelId,
-                },
-              );
-              if (!entry) continue;
-
-              if (penalty > 0 && effectiveSession.selfId) {
-                try {
-                  const record = await store.load(
-                    effectiveSession.selfId,
-                    userId,
-                  );
-                  if (record) {
-                    const nextAffinity = store.clamp(
-                      (record.longTermAffinity ?? record.affinity) - penalty,
-                    );
-                    await store.save(
-                      {
-                        platform,
-                        userId,
-                        selfId: effectiveSession.selfId,
-                        session: effectiveSession,
-                      },
-                      nextAffinity,
-                      record.relation || "",
-                    );
-                  }
-                } catch {
-                  /* ignore */
-                }
-              }
-              cache.clear(platform, userId);
-              continue;
-            }
-
-            if (action === "add") {
-              let nickname = "";
-              try {
-                const existing = await store.load(
-                  effectiveSession.selfId || "",
-                  userId,
-                );
-                nickname = existing?.nickname || "";
-              } catch {
-                /* ignore */
-              }
-              await blacklist.recordPermanent(platform, userId, {
-                note,
-                nickname,
-                channelId,
+                value,
               });
-              cache.clear(platform, userId);
               continue;
             }
-
-            await blacklist.removePermanent(platform, userId, channelId);
-            cache.clear(platform, userId);
-          }
-        }
-
-        if (config.xmlToolSettings.enableUserAliasXmlToolCall) {
-          const userAliasTags = parseSelfClosingXmlTags(response, "userAlias");
-          for (const attrs of userAliasTags) {
-            const platform = String(attrs.platform || "onebot").trim();
-            const userId = String(attrs.id || attrs.targetUserId || "").trim();
-            const alias = String(attrs.name || attrs.alias || "").trim();
-            if (!platform || !userId || !alias) continue;
-            await userAlias.setAlias(platform, userId, alias);
-          }
-        }
-
-        if (config.xmlToolSettings.enableRelationshipXmlToolCall) {
-          const relationshipTags = parseSelfClosingXmlTags(
-            response,
-            "relationship",
-          );
-          for (const attrs of relationshipTags) {
-            const relation = String(attrs.relation || "").trim();
-            const platform = String(attrs.platform || "onebot").trim();
-            const userId = String(attrs.id || attrs.targetUserId || "").trim();
-            if (!relation || !platform || !userId) continue;
-
             await store.save(
               {
+                scopeId,
                 platform,
                 userId,
-                selfId: effectiveSession.selfId,
-                session: effectiveSession,
               },
-              NaN,
-              relation,
+              value,
             );
-            cache.clear(platform, userId);
+            cache.clear(scopeId, userId);
+            continue;
           }
+
+          if (action !== "increase" && action !== "decrease") {
+            log("warn", "忽略 affinity XML：action 非法", {
+              scopeId,
+              action,
+              userId,
+            });
+            continue;
+          }
+          if (!Number.isFinite(delta) || delta <= 0) {
+            log("warn", "忽略 affinity XML：delta 非法", {
+              scopeId,
+              action,
+              userId,
+              delta,
+            });
+            continue;
+          }
+
+          await applyAffinityDelta({
+            seed: {
+              scopeId,
+              platform,
+              userId,
+            },
+            userId,
+            delta,
+            action,
+            store: {
+              ensureForSeed: store.ensureForSeed,
+              save: store.save,
+              clamp: store.clamp,
+            },
+            levelResolver: {
+              resolveLevelByAffinity: levelResolver.resolveLevelByAffinity,
+            },
+            maxIncrease: config.maxIncreasePerMessage || 5,
+            maxDecrease: config.maxDecreasePerMessage || 3,
+            maxActionEntries: actionWindowConfig.maxEntries,
+            shortTermConfig,
+            log,
+          });
+          cache.clear(scopeId, userId);
         }
-      };
-      (wrappedDebug as unknown as { [key: string]: boolean })[
-        RAW_INTERCEPTOR_TAG
-      ] = true;
-      characterLogger.debug = wrappedDebug;
-      rawInterceptorLogger = characterLogger;
-      rawInterceptorOriginalDebug = originalDebug;
-    }
-    if (!rawInterceptorDisposeBound) {
-      ctx.on("dispose", () => {
-        restoreRawModelInterceptor();
-      });
-      rawInterceptorDisposeBound = true;
-    }
-    return true;
-  };
-
-  const stopRawInterceptorFastRetry = (): void => {
-    if (!rawInterceptorFastRetryHandle) return;
-    rawInterceptorFastRetryHandle();
-    rawInterceptorFastRetryHandle = null;
-  };
-
-  const startRawInterceptorFastRetry = (): void => {
-    if (rawInterceptorFastRetryHandle) return;
-    rawInterceptorFastRetryHandle = ctx.setInterval(() => {
-      if (isRawInterceptorActive()) {
-        rawInterceptorReady = true;
-        stopRawInterceptorFastRetry();
-        return;
+      } else if (config.debugLogging && affinityTags.length > 0) {
+        log("debug", "跳过 affinity XML 处理", {
+          scopeId: config.scopeId,
+          affinityEnabled: config.affinityEnabled,
+          enableAffinityXmlToolCall:
+            config.xmlToolSettings.enableAffinityXmlToolCall,
+          affinityTagCount: affinityTags.length,
+        });
       }
-      const ready = initRawModelInterceptor();
-      if (ready && !rawInterceptorReady) {
-        log("info", "原始输出拦截已恢复");
+
+      if (config.xmlToolSettings.enableBlacklistXmlToolCall) {
+        for (const attrs of blacklistTags) {
+          const scopeId = resolveXmlScopeId(attrs, config);
+          const action = String(attrs.action || "")
+            .trim()
+            .toLowerCase();
+          const mode = String(attrs.mode || "")
+            .trim()
+            .toLowerCase();
+          const platform = String(attrs.platform || "onebot").trim();
+          const userId = String(
+            attrs.userId || attrs.id || attrs.targetUserId || "",
+          ).trim();
+          const note = String(attrs.note || "xml").trim();
+
+          if (config.debugLogging) {
+            log("debug", "开始处理 blacklist XML", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              action,
+              mode,
+              userId,
+            });
+          }
+
+          if (!scopeId) {
+            log("warn", "忽略 blacklist XML：scopeId 非法或不属于当前实例", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              action,
+              mode,
+              userId,
+            });
+            continue;
+          }
+          if (!userId || (action !== "add" && action !== "remove")) {
+            log("warn", "忽略 blacklist XML：action 或 userId 非法", {
+              scopeId,
+              action,
+              mode,
+              userId,
+            });
+            continue;
+          }
+
+          if (action === "remove") {
+            if (mode === "temporary") {
+              await blacklist.removeTemporary(platform, userId);
+              cache.clear(scopeId, userId);
+              continue;
+            }
+            if (mode === "permanent") {
+              await unblockPermanent({
+                source: "xml",
+                platform,
+                userId,
+                seed: { scopeId, platform, userId },
+              });
+              continue;
+            }
+            log("warn", "忽略 blacklist XML：remove 的 mode 非法", {
+              scopeId,
+              action,
+              mode,
+              userId,
+            });
+            continue;
+          }
+
+          if (mode === "permanent") {
+            const existing = await store.load(scopeId, userId);
+            await blacklist.recordPermanent(platform, userId, {
+              note,
+              nickname: existing?.nickname || userId,
+            });
+            cache.clear(scopeId, userId);
+            continue;
+          }
+
+          if (mode === "temporary") {
+            const durationHours = Number(attrs.durationHours || "");
+            if (!Number.isFinite(durationHours) || durationHours <= 0) {
+              log(
+                "warn",
+                "忽略 blacklist XML：temporary 缺少合法 durationHours",
+                {
+                  scopeId,
+                  action,
+                  mode,
+                  userId,
+                  durationHours,
+                },
+              );
+              continue;
+            }
+            const penalty = Math.max(
+              0,
+              Number(config.shortTermBlacklistPenalty ?? 5),
+            );
+            const existing = await store.load(scopeId, userId);
+            const entry = await blacklist.recordTemporary(
+              platform,
+              userId,
+              durationHours,
+              penalty,
+              {
+                note,
+                nickname: existing?.nickname || userId,
+              },
+            );
+            if (!entry) continue;
+
+            if (existing && penalty > 0) {
+              const nextAffinity = store.clamp(
+                (existing.longTermAffinity ?? existing.affinity) - penalty,
+              );
+              await store.save(
+                {
+                  scopeId,
+                  platform,
+                  userId,
+                },
+                nextAffinity,
+                existing.specialRelation || "",
+              );
+            }
+            cache.clear(scopeId, userId);
+            continue;
+          }
+
+          log("warn", "忽略 blacklist XML：add 的 mode 非法", {
+            scopeId,
+            action,
+            mode,
+            userId,
+          });
+        }
+      } else if (config.debugLogging && blacklistTags.length > 0) {
+        log("debug", "跳过 blacklist XML 处理", {
+          scopeId: config.scopeId,
+          enableBlacklistXmlToolCall:
+            config.xmlToolSettings.enableBlacklistXmlToolCall,
+          blacklistTagCount: blacklistTags.length,
+        });
       }
-      rawInterceptorReady = ready;
-      if (ready) stopRawInterceptorFastRetry();
-    }, RAW_INTERCEPTOR_FAST_INTERVAL);
-  };
 
-  const ensureRawInterceptorActive = (): void => {
-    if (isRawInterceptorActive()) {
-      rawInterceptorReady = true;
-      stopRawInterceptorFastRetry();
-      return;
-    }
-    const ready = initRawModelInterceptor();
-    if (ready && !rawInterceptorReady) {
-      log("info", "原始输出拦截已恢复");
-    }
-    rawInterceptorReady = ready;
-    if (!ready) startRawInterceptorFastRetry();
-  };
+      if (config.xmlToolSettings.enableUserAliasXmlToolCall) {
+        for (const attrs of userAliasTags) {
+          const scopeId = resolveXmlScopeId(attrs, config);
+          const platform = String(attrs.platform || "onebot").trim();
+          const userId = String(
+            attrs.userId || attrs.id || attrs.targetUserId || "",
+          ).trim();
+          const alias = String(attrs.name || attrs.alias || "").trim();
 
-  const startRawInterceptorMonitor = (): void => {
-    if (rawInterceptorMonitorHandle) return;
-    rawInterceptorMonitorHandle = ctx.setInterval(() => {
-      const wasReady = rawInterceptorReady;
-      ensureRawInterceptorActive();
-      if (!rawInterceptorReady && wasReady) {
-        log("warn", "原始输出拦截失效，将继续重试");
+          if (config.debugLogging) {
+            log("debug", "开始处理 userAlias XML", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              userId,
+              alias,
+            });
+          }
+
+          if (!scopeId) {
+            log("warn", "忽略 userAlias XML：scopeId 非法或不属于当前实例", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              userId,
+              alias,
+            });
+            continue;
+          }
+          if (!userId || !alias) {
+            log("warn", "忽略 userAlias XML：缺少必要字段", {
+              scopeId,
+              userId,
+              alias,
+            });
+            continue;
+          }
+
+          await userAlias.setAlias(platform, userId, alias);
+        }
+      } else if (config.debugLogging && userAliasTags.length > 0) {
+        log("debug", "跳过 userAlias XML 处理", {
+          scopeId: config.scopeId,
+          enableUserAliasXmlToolCall:
+            config.xmlToolSettings.enableUserAliasXmlToolCall,
+          userAliasTagCount: userAliasTags.length,
+        });
       }
-    }, RAW_INTERCEPTOR_MONITOR_INTERVAL);
+
+      if (config.xmlToolSettings.enableRelationshipXmlToolCall) {
+        for (const attrs of relationshipTags) {
+          const scopeId = resolveXmlScopeId(attrs, config);
+          const action = String(attrs.action || "set")
+            .trim()
+            .toLowerCase();
+          const relation = String(attrs.relation || "").trim();
+          const platform = String(attrs.platform || "onebot").trim();
+          const userId = String(
+            attrs.userId || attrs.id || attrs.targetUserId || "",
+          ).trim();
+
+          if (config.debugLogging) {
+            log("debug", "开始处理 relationship XML", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              action,
+              relation,
+              userId,
+            });
+          }
+
+          if (!scopeId) {
+            log("warn", "忽略 relationship XML：scopeId 非法或不属于当前实例", {
+              scopeId,
+              inputScopeId: attrs.scopeId || "",
+              action,
+              relation,
+              userId,
+            });
+            continue;
+          }
+          if (!userId || (action !== "set" && action !== "clear")) {
+            log("warn", "忽略 relationship XML：action 或 userId 非法", {
+              scopeId,
+              action,
+              relation,
+              userId,
+            });
+            continue;
+          }
+          if (action === "set" && !relation) {
+            log("warn", "忽略 relationship XML：set 缺少 relation", {
+              scopeId,
+              action,
+              userId,
+            });
+            continue;
+          }
+
+          await store.save(
+            {
+              scopeId,
+              platform,
+              userId,
+            },
+            Number.NaN,
+            action === "clear" ? "" : relation,
+          );
+          cache.clear(scopeId, userId);
+        }
+      } else if (config.debugLogging && relationshipTags.length > 0) {
+        log("debug", "跳过 relationship XML 处理", {
+          scopeId: config.scopeId,
+          enableRelationshipXmlToolCall:
+            config.xmlToolSettings.enableRelationshipXmlToolCall,
+          relationshipTagCount: relationshipTags.length,
+        });
+      }
+    } catch (error) {
+      log("warn", "处理模型输出事件失败", { scopeId: config.scopeId, error });
+    }
   };
 
-  const startDelay = 3000;
-  log("debug", `原始输出拦截将在 ${startDelay}ms 后启动`);
-  ctx.setTimeout(() => {
-    rawInterceptorReady = initRawModelInterceptor();
-    if (rawInterceptorReady) {
-      log("info", "已启用原始输出拦截模式");
-    } else {
-      log("warn", "chatluna_character 服务不可用，将每3秒重试一次");
-      startRawInterceptorFastRetry();
-    }
-    startRawInterceptorMonitor();
-  }, startDelay);
+  const modelResponseRuntime = createCharacterModelResponseRuntime({
+    ctx,
+    getCharacterService: () =>
+      (
+        ctx as unknown as {
+          chatluna_character?: {
+            logger?: {
+              debug?: (...args: unknown[]) => void;
+            };
+          };
+        }
+      ).chatluna_character,
+    processModelResponse,
+    log,
+  });
+
+  ctx.on("dispose", () => {
+    modelResponseRuntime.stop();
+  });
 
   const fetchMemberBound = (session: Session, userId: string) =>
     fetchMember(session, userId);
@@ -689,6 +732,7 @@ export function apply(ctx: Context, config: Config): void {
     fetchGroupMemberIds: fetchGroupMemberIdsBound,
     resolveGroupId,
     stripAtPrefix,
+    unblockPermanent,
   };
 
   registerRankCommand(commandDeps);
@@ -704,6 +748,8 @@ export function apply(ctx: Context, config: Config): void {
 
   const initializeServices = async () => {
     log("info", "插件初始化开始...");
+
+    await migration.run();
 
     try {
       await manualRelationship.syncToDatabase();
@@ -744,8 +790,8 @@ export function apply(ctx: Context, config: Config): void {
     );
 
     const relationshipLevelName = String(
-      config.variableSettings.relationshipAffinityLevelVariableName ||
-        "relationshipAffinityLevel",
+      config.variableSettings.relationshipLevelVariableName ||
+        "relationshipLevel",
     ).trim();
     if (relationshipLevelName) {
       const relationshipLevelProvider = createRelationshipLevelProvider({
@@ -764,6 +810,7 @@ export function apply(ctx: Context, config: Config): void {
     ).trim();
     if (blacklistListName) {
       const blacklistListProvider = createBlacklistListProvider({
+        scopeId: config.scopeId,
         store,
         blacklist,
       });
@@ -779,6 +826,7 @@ export function apply(ctx: Context, config: Config): void {
     ).trim();
     if (userAliasName) {
       const userAliasProvider = createUserAliasProvider({
+        scopeId: config.scopeId,
         userAlias,
       });
       promptRenderer?.registerFunctionProvider?.(
@@ -788,45 +836,20 @@ export function apply(ctx: Context, config: Config): void {
       log("info", `用户自定义昵称变量已注册: ${userAliasName}`);
     }
 
-    const toolDeps = {
-      config,
-      store,
-      cache,
-      blacklist,
-      clamp: store.clamp,
-      resolveLevelByAffinity: levelResolver.resolveLevelByAffinity,
-      resolveLevelByRelation: levelResolver.resolveLevelByRelation,
-      resolveUserIdentity: resolveUserIdentityBound,
-    };
-
-    if (config.nativeToolSettings.registerRelationshipTool) {
-      const toolName = String(
-        config.nativeToolSettings.relationshipToolName || "relationship",
-      ).trim();
-      plugin.registerTool(toolName, {
-        selector: () => true,
-        createTool: () => createRelationshipTool(toolDeps),
-      });
-      log("info", `关系工具已注册: ${toolName}`);
-    }
-
-    if (config.nativeToolSettings.registerBlacklistTool) {
-      const toolName = String(
-        config.nativeToolSettings.blacklistToolName || "blacklist",
-      ).trim();
-      plugin.registerTool(toolName, {
-        selector: () => true,
-        createTool: () => createBlacklistTool(toolDeps),
-      });
-      log("info", `黑名单工具已注册: ${toolName}`);
-    }
+    log("info", "准备启动模型响应拦截 runtime");
+    modelResponseRuntime.start();
+    log("info", "模型响应拦截 runtime.start() 调用完成");
 
     log("info", "插件初始化完成");
   };
 
   if (ctx.root.lifecycle.isActive) {
-    initializeServices();
+    initializeServices().catch((error) => log("warn", "插件初始化失败", error));
   } else {
-    ctx.on("ready", initializeServices);
+    ctx.on("ready", () => {
+      initializeServices().catch((error) =>
+        log("warn", "插件初始化失败", error),
+      );
+    });
   }
 }

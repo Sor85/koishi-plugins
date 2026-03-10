@@ -6,13 +6,18 @@
 import type { Session } from "koishi";
 import type { AffinityStore } from "../../../services/affinity/store";
 import type { BlacklistService } from "../../../services/blacklist/repository";
-import { fetchGroupMemberIds, resolveGroupId } from "../../../helpers/member";
+import {
+  fetchGroupMemberIds,
+  resolveGroupId,
+  resolveScopedVariableArgs,
+} from "../../../helpers";
 
 interface ProviderConfigurable {
   session?: Session;
 }
 
 export interface BlacklistListProviderDeps {
+  scopeId: string;
   store: AffinityStore;
   blacklist: BlacklistService;
 }
@@ -26,17 +31,20 @@ type BlacklistItem = {
 };
 
 export function createBlacklistListProvider(deps: BlacklistListProviderDeps) {
-  const { store, blacklist } = deps;
+  const { scopeId, store, blacklist } = deps;
 
   return async (
-    _args: unknown[] | undefined,
+    args: unknown[] | undefined,
     _variables: unknown,
     configurable?: ProviderConfigurable,
   ): Promise<string> => {
     const session = configurable?.session;
     const platform = session?.platform;
-    const selfId = session?.selfId;
-    if (!session || !platform || !selfId) return "";
+    if (!session || !platform) return "";
+
+    const resolved = resolveScopedVariableArgs(args);
+    const resolvedScopeId = resolved?.scopeId;
+    if (!resolvedScopeId || resolvedScopeId !== scopeId) return "";
 
     const groupId = resolveGroupId(session);
     if (!groupId) return "";
@@ -45,7 +53,6 @@ export function createBlacklistListProvider(deps: BlacklistListProviderDeps) {
     const members = memberIds || new Set<string>();
     const permanentRecords = await blacklist.listPermanent(platform);
     const temporaryRecords = await blacklist.listTemporary(platform);
-
     const records: BlacklistItem[] = [
       ...permanentRecords.map((entry) => ({
         userId: entry.userId,
@@ -66,10 +73,10 @@ export function createBlacklistListProvider(deps: BlacklistListProviderDeps) {
 
     const rows: string[] = [];
     for (const entry of records) {
-      if (!entry?.userId) continue;
+      if (!entry.userId) continue;
       if (members.size > 0 && !members.has(entry.userId)) continue;
 
-      const record = await store.load(selfId, entry.userId);
+      const record = await store.load(resolvedScopeId, entry.userId);
       const name = record?.nickname || entry.nickname || entry.userId;
       const affinity = Number(record?.affinity ?? 0);
 

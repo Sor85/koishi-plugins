@@ -22,23 +22,11 @@ export interface TemporaryBlacklistEntry {
   platform: string;
 }
 
-export interface AffinityGroup {
-  groupName: string;
-  botIds: string[];
-}
-
 export interface VariableSettings {
   affinityVariableName?: string;
-  relationshipAffinityLevelVariableName?: string;
+  relationshipLevelVariableName?: string;
   blacklistListVariableName?: string;
   userAliasVariableName?: string;
-}
-
-export interface NativeToolSettings {
-  registerRelationshipTool?: boolean;
-  relationshipToolName?: string;
-  registerBlacklistTool?: boolean;
-  blacklistToolName?: string;
 }
 
 export interface XmlToolSettings {
@@ -50,12 +38,14 @@ export interface XmlToolSettings {
 }
 
 export interface FrontendConfigSubset {
+  scopeId?: string;
   affinityEnabled?: boolean;
   affinityDisplayRange?: number;
   rankRenderAsImage?: boolean;
   rankDefaultLimit?: number;
 
   blacklistLogInterception?: boolean;
+  unblockPermanentInitialAffinity?: number;
   blacklistDefaultLimit?: number;
   blacklistRenderAsImage?: boolean;
   shortTermBlacklistRenderAsImage?: boolean;
@@ -63,14 +53,12 @@ export interface FrontendConfigSubset {
   inspectRenderAsImage?: boolean;
   inspectShowImpression?: boolean;
   debugLogging?: boolean;
-  affinityGroups?: AffinityGroup[];
 
   variableSettings?: VariableSettings;
-  nativeToolSettings?: NativeToolSettings;
   xmlToolSettings?: XmlToolSettings;
 
   affinityVariableName?: string;
-  relationshipAffinityLevelVariableName?: string;
+  relationshipLevelVariableName?: string;
   blacklistListVariableName?: string;
   userAliasVariableName?: string;
 }

@@ -16,9 +16,7 @@ export {
   AffinityDynamicsConfig,
   RelationshipLevel,
   ManualRelationship,
-  AffinityGroup,
   VariableSettings,
-  NativeToolSettings,
   XmlToolSettings,
   Config,
 } from "./config";

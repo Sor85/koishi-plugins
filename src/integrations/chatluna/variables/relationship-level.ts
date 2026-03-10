@@ -3,54 +3,59 @@
  * 提供当前用户的好感度区间、关系与备注
  */
 
-import type { AffinityStore } from '../../../services/affinity/store'
-import type { Config } from '../../../types'
+import type { AffinityStore } from "../../../services/affinity/store";
+import type { Config } from "../../../types";
+import { resolveScopedVariableArgs } from "../../../helpers";
 
 interface ProviderConfigurable {
-    session?: {
-        platform?: string
-        userId?: string
-        selfId?: string
-    }
+  session?: {
+    platform?: string;
+    userId?: string;
+    selfId?: string;
+  };
 }
 
 export interface RelationshipLevelProviderDeps {
-    store: AffinityStore
-    config: Config
+  store: AffinityStore;
+  config: Config;
 }
 
-export function createRelationshipLevelProvider(deps: RelationshipLevelProviderDeps) {
-    const { store, config } = deps
+export function createRelationshipLevelProvider(
+  deps: RelationshipLevelProviderDeps,
+) {
+  const { store, config } = deps;
 
-    return async (
-        args: unknown[] | undefined,
-        _variables: unknown,
-        configurable?: ProviderConfigurable
-    ): Promise<string> => {
-        const session = configurable?.session
-        const [userArg] = args || []
-        const userId = String(userArg || session?.userId || '').trim()
-        if (!userId) return ''
+  return async (
+    args: unknown[] | undefined,
+    _variables: unknown,
+    configurable?: ProviderConfigurable,
+  ): Promise<string> => {
+    const session = configurable?.session;
+    const resolved = resolveScopedVariableArgs(args);
+    const scopeId = resolved?.scopeId;
+    if (!scopeId || scopeId !== config.scopeId) return "";
 
-        const selfId = session?.selfId
-        if (!selfId) return ''
+    const userId = String(
+      resolved?.targetUserId || session?.userId || "",
+    ).trim();
+    if (!userId) return "";
 
-        const levels = config.relationshipAffinityLevels || []
-        if (!levels.length) return ''
+    const levels = config.relationshipAffinityLevels || [];
+    if (!levels.length) return "";
 
-        const record = await store.load(selfId, userId)
-        const affinity = record?.affinity ?? null
+    await store.load(scopeId, userId);
 
-        const lines = levels.map((level) => {
-            const range = `${level.min}-${level.max}`
-            const note = level.note?.trim()
-            const detail = note ? `${level.relation}（${note}）` : level.relation
-            return `${range}：${detail}`
-        })
+    const lines = levels.map((level) => {
+      const range = `${level.min}-${level.max}`;
+      const note = level.note?.trim();
+      const detail = note ? `${level.relation}（${note}）` : level.relation;
+      return `${range}：${detail}`;
+    });
 
-        return lines.join('\n')
-    }
+    return lines.join("\n");
+  };
 }
 
-export type RelationshipLevelProvider = ReturnType<typeof createRelationshipLevelProvider>
-
+export type RelationshipLevelProvider = ReturnType<
+  typeof createRelationshipLevelProvider
+>;

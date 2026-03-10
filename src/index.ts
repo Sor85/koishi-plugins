@@ -28,11 +28,11 @@ export const usage = `
 0.2.6
 - 新增
   - 新增黑名单、关系调整 XML 工具调用
-  - 新增黑名单临时拉黑能力（XML/原生工具）
+  - 新增黑名单临时拉黑能力（XML）
   - 新增 blacklistList 变量（当前群黑名单信息）
   - 新增用户自定义昵称能力：userAlias XML 工具 + userAlias 变量，数据持久化到数据库
 - 调整
-  - 黑名单能力改为由 Bot 通过 XML/工具自主决策（含永久/临时与解除）
+  - 黑名单能力改为由 Bot 通过 XML 自主决策（含永久/临时与解除）
   - 黑名单相关数据由配置存储迁移为数据库存储
   - 独立 contextAffinity 变量能力并入 affinity 变量
   - 日程、天气能力拆分至 koishi-plugin-chatluna-schedule

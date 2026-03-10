@@ -5,7 +5,7 @@
 
 export type BlacklistMode = "permanent" | "temporary";
 
-export interface BlacklistRecord {
+export interface LegacyBlacklistRecord {
   platform: string;
   userId: string;
   mode: BlacklistMode;
@@ -13,28 +13,31 @@ export interface BlacklistRecord {
   expiresAt: Date | null;
   nickname: string | null;
   note: string | null;
-  channelId: string | null;
   durationHours: number | null;
   penalty: number | null;
 }
 
+export interface BlacklistRecord extends LegacyBlacklistRecord {
+  scopeId: string;
+}
+
 export interface BlacklistEntry {
+  scopeId: string;
   platform: string;
   userId: string;
   blockedAt: string;
   nickname?: string;
   note: string;
-  channelId?: string;
 }
 
 export interface TemporaryBlacklistEntry {
+  scopeId: string;
   platform: string;
   userId: string;
   blockedAt: string;
   expiresAt: string;
   nickname?: string;
   note: string;
-  channelId?: string;
   durationHours: number | string;
   penalty: number | string;
 }
@@ -42,9 +45,6 @@ export interface TemporaryBlacklistEntry {
 export interface BlacklistDetail {
   note?: string;
   nickname?: string;
-  channelId?: string;
-  guildId?: string;
-  groupId?: string;
 }
 
 export interface InMemoryTemporaryEntry {

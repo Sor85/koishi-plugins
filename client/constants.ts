@@ -25,7 +25,6 @@ export const NAV_SECTIONS: NavSection[] = [
   { title: "黑名单设置", key: "blacklist" },
   { title: "关系设置", key: "relationship" },
   { title: "变量设置", key: "variables" },
-  { title: "原生工具设置", key: "nativeTools" },
   { title: "XML 工具设置", key: "xmlTools" },
   { title: "其他设置", key: "otherSettings" },
 ];
@@ -35,7 +34,6 @@ export const TITLE_TO_KEY: Record<string, string> = {
   黑名单设置: "blacklist",
   关系设置: "relationship",
   变量设置: "variables",
-  原生工具设置: "nativeTools",
   "XML 工具设置": "xmlTools",
   其他设置: "otherSettings",
 };
@@ -45,7 +43,6 @@ export const KEY_TO_TITLE: Record<string, string> = {
   blacklist: "黑名单设置",
   relationship: "关系设置",
   variables: "变量设置",
-  nativeTools: "原生工具设置",
   xmlTools: "XML 工具设置",
   otherSettings: "其他设置",
 };
@@ -55,9 +52,9 @@ export const VARIABLE_CONFIG: Record<
   { section: string; searchKey: string | string[] }
 > = {
   affinity: { section: "变量设置", searchKey: "affinityVariableName" },
-  relationshipAffinityLevel: {
+  relationshipLevel: {
     section: "变量设置",
-    searchKey: "relationshipAffinityLevelVariableName",
+    searchKey: "relationshipLevelVariableName",
   },
   blacklistList: {
     section: "变量设置",

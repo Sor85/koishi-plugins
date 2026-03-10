@@ -1,6 +1,6 @@
 /**
  * 黑名单数据库服务
- * 提供永久/临时黑名单的数据库读写与过期清理
+ * 提供按 scopeId 隔离的永久/临时黑名单读写能力
  */
 
 import type { Context } from "koishi";
@@ -14,7 +14,7 @@ import type {
   TemporaryBlacklistEntry,
 } from "../../types";
 import { formatBeijingTimestamp } from "../../utils";
-import { BLACKLIST_MODEL_NAME } from "../../models";
+import { BLACKLIST_MODEL_NAME_V2 } from "../../models";
 
 export interface BlacklistServiceOptions {
   ctx: Context;
@@ -24,6 +24,8 @@ export interface BlacklistServiceOptions {
 
 export function createBlacklistService(options: BlacklistServiceOptions) {
   const { ctx, config, log } = options;
+
+  const scopeId = String(config.scopeId || "").trim();
 
   const normalizeDate = (value: unknown): Date | null => {
     if (!value) return null;
@@ -35,24 +37,24 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
   };
 
   const toPermanentEntry = (record: BlacklistRecord): BlacklistEntry => ({
+    scopeId: record.scopeId,
     platform: record.platform,
     userId: record.userId,
     blockedAt: formatBeijingTimestamp(record.blockedAt),
     nickname: record.nickname || "",
     note: record.note || "",
-    channelId: record.channelId || "",
   });
 
   const toTemporaryEntry = (
     record: BlacklistRecord,
   ): TemporaryBlacklistEntry => ({
+    scopeId: record.scopeId,
     platform: record.platform,
     userId: record.userId,
     blockedAt: formatBeijingTimestamp(record.blockedAt),
     expiresAt: formatBeijingTimestamp(record.expiresAt || new Date(0)),
     nickname: record.nickname || "",
     note: record.note || "",
-    channelId: record.channelId || "",
     durationHours: record.durationHours ?? "",
     penalty: record.penalty ?? "",
   });
@@ -61,8 +63,12 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
     mode: BlacklistMode,
     platform?: string,
   ): Promise<BlacklistRecord[]> => {
-    const query = platform ? { mode, platform } : { mode };
-    const list = await ctx.database.get(BLACKLIST_MODEL_NAME, query);
+    const query = {
+      scopeId,
+      mode,
+      ...(platform ? { platform } : {}),
+    };
+    const list = await ctx.database.get(BLACKLIST_MODEL_NAME_V2, query);
     return list as unknown as BlacklistRecord[];
   };
 
@@ -76,8 +82,8 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
     if (!expired.length) return;
     await Promise.all(
       expired.map((item) =>
-        ctx.database.remove(BLACKLIST_MODEL_NAME, {
-          platform: item.platform,
+        ctx.database.remove(BLACKLIST_MODEL_NAME_V2, {
+          scopeId: item.scopeId,
           userId: item.userId,
           mode: "temporary",
         }),
@@ -88,9 +94,9 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
   const isBlacklisted = async (
     platform: string,
     userId: string,
-    _channelId?: string,
   ): Promise<boolean> => {
-    const rows = (await ctx.database.get(BLACKLIST_MODEL_NAME, {
+    const rows = (await ctx.database.get(BLACKLIST_MODEL_NAME_V2, {
+      scopeId,
       platform,
       userId,
       mode: "permanent",
@@ -103,7 +109,8 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
     userId: string,
   ): Promise<TemporaryBlacklistEntry | null> => {
     await removeExpiredTemporary();
-    const rows = (await ctx.database.get(BLACKLIST_MODEL_NAME, {
+    const rows = (await ctx.database.get(BLACKLIST_MODEL_NAME_V2, {
+      scopeId,
       platform,
       userId,
       mode: "temporary",
@@ -112,8 +119,8 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
     const first = rows[0];
     const expiresAt = normalizeDate(first.expiresAt);
     if (!expiresAt || expiresAt.getTime() <= Date.now()) {
-      await ctx.database.remove(BLACKLIST_MODEL_NAME, {
-        platform,
+      await ctx.database.remove(BLACKLIST_MODEL_NAME_V2, {
+        scopeId,
         userId,
         mode: "temporary",
       });
@@ -150,6 +157,7 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
     const existing = await isBlacklisted(platform, userId);
     if (existing) return null;
     const row: BlacklistRecord = {
+      scopeId,
       platform,
       userId,
       mode: "permanent",
@@ -157,24 +165,22 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
       expiresAt: null,
       nickname: detail?.nickname || null,
       note: detail?.note || "",
-      channelId: detail?.channelId || detail?.guildId || detail?.groupId || "",
       durationHours: null,
       penalty: null,
     };
-    await ctx.database.upsert(BLACKLIST_MODEL_NAME, [row as never]);
-    log("info", "已记录永久拉黑用户", { platform, userId });
+    await ctx.database.upsert(BLACKLIST_MODEL_NAME_V2, [row as never]);
+    log("info", "已记录永久拉黑用户", { scopeId, platform, userId });
     return toPermanentEntry(row);
   };
 
   const removePermanent = async (
     platform: string,
     userId: string,
-    _channelId?: string,
   ): Promise<boolean> => {
     const existing = await isBlacklisted(platform, userId);
     if (!existing) return false;
-    await ctx.database.remove(BLACKLIST_MODEL_NAME, {
-      platform,
+    await ctx.database.remove(BLACKLIST_MODEL_NAME_V2, {
+      scopeId,
       userId,
       mode: "permanent",
     });
@@ -193,6 +199,7 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
     const row: BlacklistRecord = {
+      scopeId,
       platform,
       userId,
       mode: "temporary",
@@ -200,12 +207,12 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
       expiresAt,
       nickname: detail?.nickname || null,
       note: detail?.note || "",
-      channelId: detail?.channelId || detail?.guildId || detail?.groupId || "",
       durationHours,
       penalty,
     };
-    await ctx.database.upsert(BLACKLIST_MODEL_NAME, [row as never]);
+    await ctx.database.upsert(BLACKLIST_MODEL_NAME_V2, [row as never]);
     log("info", "已记录临时拉黑用户", {
+      scopeId,
       platform,
       userId,
       durationHours,
@@ -220,8 +227,8 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
   ): Promise<boolean> => {
     const existing = await isTemporarilyBlacklisted(platform, userId);
     if (!existing) return false;
-    await ctx.database.remove(BLACKLIST_MODEL_NAME, {
-      platform,
+    await ctx.database.remove(BLACKLIST_MODEL_NAME_V2, {
+      scopeId,
       userId,
       mode: "temporary",
     });
@@ -238,7 +245,7 @@ export function createBlacklistService(options: BlacklistServiceOptions) {
   };
 
   const clearAll = async (): Promise<void> => {
-    await ctx.database.remove(BLACKLIST_MODEL_NAME, {});
+    await ctx.database.remove(BLACKLIST_MODEL_NAME_V2, { scopeId });
   };
 
   return {

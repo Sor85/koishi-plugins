@@ -5,3 +5,4 @@
 
 export * from "./repository";
 export * from "./guard";
+export * from "./unblock-permanent";

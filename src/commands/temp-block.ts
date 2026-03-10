@@ -5,6 +5,7 @@
 
 import type { Session } from "koishi";
 import type { CommandDependencies } from "./types";
+import { buildScopedCommandName } from "../helpers";
 import type { BlacklistService } from "../services/blacklist/repository";
 
 export interface TempBlockCommandDeps extends CommandDependencies {
@@ -19,14 +20,14 @@ export function registerTempBlockCommand(deps: TempBlockCommandDeps) {
     cache,
     blacklist,
     resolveUserIdentity,
-    resolveGroupId,
     stripAtPrefix,
     fetchMember,
   } = deps;
 
   ctx
     .command(
-      "affinity.tempBlock <userId:string> [durationHours:number] [platform:string]",
+      buildScopedCommandName(deps.config.scopeId, "tempBlock") +
+        " <userId:string> [durationHours:number] [platform:string]",
       "临时拉黑用户",
       { authority: 4 },
     )
@@ -36,12 +37,14 @@ export function registerTempBlockCommand(deps: TempBlockCommandDeps) {
     .action(async ({ session, options }, userId, durationArg, platformArg) => {
       const platform = platformArg || session?.platform;
       if (!platform) return "请指定平台。";
-      const groupId = resolveGroupId(session as Session);
       const resolved = await resolveUserIdentity(session as Session, userId);
       const normalizedUserId = resolved?.userId || stripAtPrefix(userId);
       if (!normalizedUserId) return "用户 ID 不能为空。";
 
-      const durationHours = durationArg || 12;
+      const parsedDuration = Number(durationArg);
+      const durationHours = Number.isFinite(parsedDuration)
+        ? Math.max(1, parsedDuration)
+        : 12;
       const penalty = options?.penalty ?? config.shortTermBlacklistPenalty ?? 5;
 
       const existing = await blacklist.isTemporarilyBlacklisted(
@@ -60,30 +63,36 @@ export function registerTempBlockCommand(deps: TempBlockCommandDeps) {
         {
           note: options?.note || "manual",
           nickname: resolved?.nickname || normalizedUserId,
-          channelId: groupId,
         },
       );
       if (!entry) return `添加临时黑名单失败。`;
 
-      const selfId = session?.selfId;
-      if (penalty > 0 && selfId) {
+      if (penalty > 0) {
         try {
-          const record = await store.load(selfId, normalizedUserId);
+          const record = await store.load(
+            deps.config.scopeId,
+            normalizedUserId,
+          );
           if (record) {
             const newAffinity = store.clamp(
               (record.longTermAffinity ?? record.affinity) - penalty,
             );
             await store.save(
-              { platform, userId: normalizedUserId, selfId, session },
+              {
+                scopeId: deps.config.scopeId,
+                platform,
+                userId: normalizedUserId,
+                session,
+              },
               newAffinity,
-              record.relation || "",
+              record.specialRelation || "",
             );
           }
         } catch {
           /* ignore */
         }
       }
-      cache.clear(platform, normalizedUserId);
+      cache.clear(deps.config.scopeId, normalizedUserId);
 
       const nicknameDisplay = resolved?.nickname || normalizedUserId;
       return `已将 ${nicknameDisplay} (${normalizedUserId}) 加入临时黑名单，时长 ${durationHours} 小时，扣除好感度 ${penalty}。`;
@@ -91,7 +100,8 @@ export function registerTempBlockCommand(deps: TempBlockCommandDeps) {
 
   ctx
     .command(
-      "affinity.tempUnblock <userId:string> [platform:string]",
+      buildScopedCommandName(deps.config.scopeId, "tempUnblock") +
+        " <userId:string> [platform:string]",
       "解除临时拉黑",
       { authority: 4 },
     )
@@ -105,7 +115,7 @@ export function registerTempBlockCommand(deps: TempBlockCommandDeps) {
         platform,
         normalizedUserId,
       );
-      cache.clear(platform, normalizedUserId);
+      cache.clear(deps.config.scopeId, normalizedUserId);
       if (removed) {
         let nickname = normalizedUserId;
         if (session) {

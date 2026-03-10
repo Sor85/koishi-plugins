@@ -13,7 +13,8 @@
   "scripts": {
     "build": "tsup && vite build",
     "watch": "tsup --watch",
-    "clean": "rimraf lib dist"
+    "clean": "rimraf lib dist",
+    "test": "npm run build && node --test test/**/*.test.js"
   },
   "keywords": [
     "chatbot",
@@ -61,8 +62,6 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.62",
-    "koishi-plugin-chatluna": "*",
-    "zod": "^3.23.8"
+    "koishi-plugin-chatluna": "*"
   }
 }

@@ -5,17 +5,19 @@
 
 import type { Session } from "koishi";
 import type { UserAliasService } from "../../../services/user-alias/repository";
+import { resolveScopedVariableArgs } from "../../../helpers";
 
 interface ProviderConfigurable {
   session?: Session;
 }
 
 export interface UserAliasProviderDeps {
+  scopeId: string;
   userAlias: UserAliasService;
 }
 
 export function createUserAliasProvider(deps: UserAliasProviderDeps) {
-  const { userAlias } = deps;
+  const { scopeId, userAlias } = deps;
 
   return async (
     args: unknown[] | undefined,
@@ -24,8 +26,13 @@ export function createUserAliasProvider(deps: UserAliasProviderDeps) {
   ): Promise<string> => {
     const session = configurable?.session;
     const platform = session?.platform;
-    const [userArg] = args || [];
-    const userId = String(userArg || session?.userId || "").trim();
+    const resolved = resolveScopedVariableArgs(args);
+    const resolvedScopeId = resolved?.scopeId;
+    if (!resolvedScopeId || resolvedScopeId !== scopeId) return "";
+
+    const userId = String(
+      resolved?.targetUserId || session?.userId || "",
+    ).trim();
     if (!platform || !userId) return "";
 
     const alias = await userAlias.getAlias(platform, userId);

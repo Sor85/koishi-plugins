@@ -8,8 +8,8 @@ import { AffinitySchema } from "./affinity";
 import { BlacklistSchema } from "./blacklist";
 import { RelationshipSchema } from "./relationship";
 import {
+  ScopeSettingsSchema,
   VariableSettingsSchema,
-  NativeToolSettingsSchema,
   XmlToolSettingsSchema,
   OtherSettingsSchema,
 } from "./tools";
@@ -31,11 +31,11 @@ export const inject = {
 };
 
 export const ConfigSchema = Schema.intersect([
+  ScopeSettingsSchema,
   AffinitySchema,
   BlacklistSchema,
   RelationshipSchema,
   VariableSettingsSchema,
-  NativeToolSettingsSchema,
   XmlToolSettingsSchema,
   OtherSettingsSchema,
 ]);

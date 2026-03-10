@@ -6,6 +6,7 @@
 import { h } from "koishi";
 import type { Session } from "koishi";
 import type { CommandDependencies, BlacklistEnrichedItem } from "./types";
+import { buildScopedCommandName } from "../helpers";
 import type { BlacklistService } from "../services/blacklist/repository";
 
 export interface BlacklistCommandDeps extends CommandDependencies {
@@ -54,11 +55,20 @@ async function enrichBlacklistRecords(
 }
 
 export function registerBlacklistCommand(deps: BlacklistCommandDeps) {
-  const { ctx, config, renders, blacklist, stripAtPrefix } = deps;
+  const {
+    ctx,
+    config,
+    renders,
+    blacklist,
+    stripAtPrefix,
+    fetchGroupMemberIds,
+    resolveGroupId,
+  } = deps;
 
   ctx
     .command(
-      "affinity.blacklist [limit:number] [platform:string] [image]",
+      buildScopedCommandName(config.scopeId, "blacklist") +
+        " [limit:number] [platform:string] [image]",
       "查看黑名单列表",
       { authority: 2 },
     )
@@ -87,22 +97,35 @@ export function registerBlacklistCommand(deps: BlacklistCommandDeps) {
         return "当前环境未启用 puppeteer，已改为文本模式。";
 
       const platform = platformArg || session?.platform;
+      const groupId = session ? resolveGroupId(session as Session) : "";
+      const memberIds =
+        groupId && session
+          ? await fetchGroupMemberIds(session as Session)
+          : null;
+
+      if (groupId && (!memberIds || memberIds.size === 0)) {
+        return "无法获取本群成员列表，暂时无法展示黑名单。";
+      }
 
       const permanentRecords = await blacklist.listPermanent(platform);
       const tempRecords = await blacklist.listTemporary(platform);
 
       const merged: MergedBlacklistEntry[] = [
-        ...permanentRecords.map((r) => ({ ...r, isTemp: false as const })),
-        ...tempRecords.map((r) => ({
-          userId: r.userId,
-          nickname: r.nickname,
-          blockedAt: r.blockedAt,
-          note: r.note,
-          isTemp: true as const,
-          expiresAt: r.expiresAt,
-          durationHours: Number(r.durationHours) || undefined,
-          penalty: Number(r.penalty) || undefined,
-        })),
+        ...permanentRecords
+          .filter((r) => !memberIds || memberIds.has(stripAtPrefix(r.userId)))
+          .map((r) => ({ ...r, isTemp: false as const })),
+        ...tempRecords
+          .filter((r) => !memberIds || memberIds.has(stripAtPrefix(r.userId)))
+          .map((r) => ({
+            userId: r.userId,
+            nickname: r.nickname,
+            blockedAt: r.blockedAt,
+            note: r.note,
+            isTemp: true as const,
+            expiresAt: r.expiresAt,
+            durationHours: Number(r.durationHours) || undefined,
+            penalty: Number(r.penalty) || undefined,
+          })),
       ];
 
       if (!merged.length) return "当前暂无拉黑记录。";

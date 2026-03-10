@@ -5,6 +5,7 @@
 
 import type { Session } from "koishi";
 import type { CommandDependencies } from "./types";
+import { buildScopedCommandName } from "../helpers";
 import type { BlacklistService } from "../services/blacklist/repository";
 
 export interface BlockCommandDeps extends CommandDependencies {
@@ -17,14 +18,15 @@ export function registerBlockCommand(deps: BlockCommandDeps) {
     cache,
     blacklist,
     resolveUserIdentity,
-    resolveGroupId,
     stripAtPrefix,
     fetchMember,
+    unblockPermanent,
   } = deps;
 
   ctx
     .command(
-      "affinity.block <userId:string> [platform:string]",
+      buildScopedCommandName(deps.config.scopeId, "block") +
+        " <userId:string> [platform:string]",
       "手动将用户加入黑名单",
       { authority: 4 },
     )
@@ -33,27 +35,26 @@ export function registerBlockCommand(deps: BlockCommandDeps) {
     .action(async ({ session, options }, userId, platformArg) => {
       const platform = platformArg || session?.platform;
       if (!platform) return "请指定平台。";
-      const groupId = resolveGroupId(session as Session);
       const resolved = await resolveUserIdentity(session as Session, userId);
       const normalizedUserId = resolved?.userId || stripAtPrefix(userId);
       if (!normalizedUserId) return "用户 ID 不能为空。";
-      if (await blacklist.isBlacklisted(platform, normalizedUserId, groupId)) {
+      if (await blacklist.isBlacklisted(platform, normalizedUserId)) {
         return `${platform}/${normalizedUserId} 已在永久黑名单中。`;
       }
       const note = options?.note || "manual";
       await blacklist.recordPermanent(platform, normalizedUserId, {
         note,
         nickname: resolved?.nickname || normalizedUserId,
-        channelId: groupId,
       });
-      cache.clear(platform, normalizedUserId);
+      cache.clear(deps.config.scopeId, normalizedUserId);
       const nicknameDisplay = resolved?.nickname || normalizedUserId;
       return `已将 ${nicknameDisplay} (${normalizedUserId}) 加入永久黑名单。`;
     });
 
   ctx
     .command(
-      "affinity.unblock <userId:string> [platform:string]",
+      buildScopedCommandName(deps.config.scopeId, "unblock") +
+        " <userId:string> [platform:string]",
       "解除永久黑名单",
       { authority: 4 },
     )
@@ -63,14 +64,24 @@ export function registerBlockCommand(deps: BlockCommandDeps) {
       if (!platform) return "请指定平台。";
       const normalizedUserId = stripAtPrefix(userId);
       if (!normalizedUserId) return "用户 ID 不能为空。";
-      const groupId = resolveGroupId(session as Session);
-      const removed = await blacklist.removePermanent(
+      const result = await unblockPermanent({
+        source: "command",
         platform,
-        normalizedUserId,
-        groupId,
-      );
-      cache.clear(platform, normalizedUserId);
-      if (removed) {
+        userId: normalizedUserId,
+        seed: session
+          ? {
+              scopeId: deps.config.scopeId,
+              platform,
+              userId: normalizedUserId,
+              session: session as Session,
+            }
+          : {
+              scopeId: deps.config.scopeId,
+              platform,
+              userId: normalizedUserId,
+            },
+      });
+      if (result.removed && result.affinityReset) {
         let nickname = normalizedUserId;
         if (session) {
           const memberInfo = await fetchMember(
@@ -88,8 +99,8 @@ export function registerBlockCommand(deps: BlockCommandDeps) {
             nickname = String(card || nick || normalizedUserId).trim();
           }
         }
-        return `已解除 ${nickname}(${normalizedUserId}) 的永久黑名单。`;
+        return `已解除 ${nickname}(${normalizedUserId}) 的永久黑名单，并将好感度重置为 ${result.affinity ?? "配置值"}。`;
       }
-      return `${normalizedUserId} 不在永久黑名单中。`;
+      return `${normalizedUserId} 不在永久黑名单中，或当前上下文无法完成好感度重置。`;
     });
 }

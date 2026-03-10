@@ -4,6 +4,7 @@
  */
 
 import { Schema } from "koishi";
+import { THRESHOLDS } from "../constants";
 
 export const BlacklistSchema = Schema.object({
   blacklistLogInterception: Schema.boolean()
@@ -13,6 +14,9 @@ export const BlacklistSchema = Schema.object({
     .default(5)
     .min(0)
     .description("临时拉黑时额外扣减的长期好感度"),
+  unblockPermanentInitialAffinity: Schema.number()
+    .default(THRESHOLDS.UNBLOCK_PERMANENT_INITIAL_AFFINITY)
+    .description("解除永久黑名单后重置的初始好感度"),
   blacklistDefaultLimit: Schema.number()
     .default(10)
     .min(1)

@@ -5,21 +5,23 @@
 
 import type { Context } from "koishi";
 import type { LogFn, UserAliasRecord } from "../../types";
-import { USER_ALIAS_MODEL_NAME } from "../../models";
+import { USER_ALIAS_MODEL_NAME_V2 } from "../../models";
 
 export interface UserAliasServiceOptions {
   ctx: Context;
+  scopeId: string;
   log: LogFn;
 }
 
 export function createUserAliasService(options: UserAliasServiceOptions) {
-  const { ctx, log } = options;
+  const { ctx, scopeId, log } = options;
 
   const getAlias = async (
     platform: string,
     userId: string,
   ): Promise<string | null> => {
-    const rows = (await ctx.database.get(USER_ALIAS_MODEL_NAME, {
+    const rows = (await ctx.database.get(USER_ALIAS_MODEL_NAME_V2, {
+      scopeId,
       platform,
       userId,
     })) as unknown as UserAliasRecord[];
@@ -32,13 +34,14 @@ export function createUserAliasService(options: UserAliasServiceOptions) {
     alias: string,
   ): Promise<UserAliasRecord> => {
     const row: UserAliasRecord = {
+      scopeId,
       platform,
       userId,
       alias,
       updatedAt: new Date(),
     };
-    await ctx.database.upsert(USER_ALIAS_MODEL_NAME, [row as never]);
-    log("info", "已设置用户自定义昵称", { platform, userId, alias });
+    await ctx.database.upsert(USER_ALIAS_MODEL_NAME_V2, [row as never]);
+    log("info", "已设置用户自定义昵称", { scopeId, platform, userId, alias });
     return row;
   };
 

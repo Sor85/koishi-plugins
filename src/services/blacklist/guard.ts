@@ -23,7 +23,11 @@ export function createBlacklistGuard(options: BlacklistGuardOptions) {
 
     const blocked = await blacklist.shouldBlock(platform, userId);
     if (blocked && config.blacklistLogInterception) {
-      log("info", "消息被黑名单拦截", { platform, userId });
+      log("info", "消息被黑名单拦截", {
+        scopeId: config.scopeId,
+        platform,
+        userId,
+      });
     }
     return blocked;
   };

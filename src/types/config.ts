@@ -55,23 +55,11 @@ export interface ManualRelationship {
   note?: string;
 }
 
-export interface AffinityGroup {
-  groupName: string;
-  botIds: string[];
-}
-
 export interface VariableSettings {
   affinityVariableName: string;
-  relationshipAffinityLevelVariableName: string;
+  relationshipLevelVariableName: string;
   blacklistListVariableName: string;
   userAliasVariableName: string;
-}
-
-export interface NativeToolSettings {
-  registerRelationshipTool: boolean;
-  relationshipToolName: string;
-  registerBlacklistTool: boolean;
-  blacklistToolName: string;
 }
 
 export interface XmlToolSettings {
@@ -83,6 +71,7 @@ export interface XmlToolSettings {
 }
 
 export interface Config {
+  scopeId: string;
   affinityEnabled: boolean;
   affinityDisplayRange: number;
   baseAffinityConfig: BaseAffinityConfig;
@@ -93,6 +82,7 @@ export interface Config {
   affinityDynamics: AffinityDynamicsConfig;
   blacklistLogInterception: boolean;
   shortTermBlacklistPenalty: number;
+  unblockPermanentInitialAffinity: number;
   rankDefaultLimit: number;
   rankRenderAsImage: boolean;
   blacklistDefaultLimit: number;
@@ -101,10 +91,8 @@ export interface Config {
   debugLogging: boolean;
   blacklistRenderAsImage: boolean;
   shortTermBlacklistRenderAsImage: boolean;
-  affinityGroups: AffinityGroup[];
   relationships: ManualRelationship[];
   relationshipAffinityLevels: RelationshipLevel[];
   variableSettings: VariableSettings;
-  nativeToolSettings: NativeToolSettings;
   xmlToolSettings: XmlToolSettings;
 }

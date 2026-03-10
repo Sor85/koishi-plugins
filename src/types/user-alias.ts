@@ -3,9 +3,13 @@
  * 包含数据库记录与变量输出结构
  */
 
-export interface UserAliasRecord {
+export interface LegacyUserAliasRecord {
   platform: string;
   userId: string;
   alias: string;
   updatedAt: Date;
+}
+
+export interface UserAliasRecord extends LegacyUserAliasRecord {
+  scopeId: string;
 }

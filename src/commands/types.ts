@@ -4,10 +4,11 @@
  */
 
 import type { Context, Session } from "koishi";
-import type { Config, LogFn, MemberInfo } from "../types";
+import type { Config, LogFn, MemberInfo, SessionSeed } from "../types";
 import type { AffinityStore } from "../services/affinity/store";
 import type { AffinityCache } from "../types";
 import type { RenderService } from "../renders";
+import type { UnblockPermanentResult } from "../services/blacklist";
 
 export interface CommandDependencies {
   ctx: Context;
@@ -28,6 +29,12 @@ export interface CommandDependencies {
   fetchGroupMemberIds: (session: Session) => Promise<Set<string> | null>;
   resolveGroupId: (session: Session) => string;
   stripAtPrefix: (text: string) => string;
+  unblockPermanent: (input: {
+    source: "command" | "xml";
+    platform: string;
+    userId: string;
+    seed?: SessionSeed;
+  }) => Promise<UnblockPermanentResult>;
 }
 
 export interface RankLineItem {

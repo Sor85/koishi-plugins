@@ -16,9 +16,9 @@
 ## 功能一览
 
 - 支持命令管理：查看排行、查看详情、调整好感、黑名单管理、清库
-- 支持 ChatLuna 变量注入：`affinity`、`relationshipAffinityLevel`、`blacklistList`、`userAlias`
-- 支持原生工具（可选注册）：关系工具、黑名单工具
+- 支持 ChatLuna 变量注入：`affinity(scopeId)`、`relationshipLevel(scopeId)`、`blacklistList(scopeId)`、`userAlias(scopeId)`
 - 支持 XML 动作调用：好感度、黑名单、关系、自定义昵称
+- 所有核心数据均按 `scopeId + userId` 隔离，不再回退到会话频道语义
 - 数据写入 Koishi `ctx.database`，支持跨重启持久化
 
 ## 快速上手
@@ -27,6 +27,7 @@
 
 默认配置可直接运行，建议优先确认：
 
+- `scopeId` 已设置为当前角色实例的唯一标识
 - `affinityEnabled = true`
 - `xmlToolSettings.enableAffinityXmlToolCall = true`
 - `xmlToolSettings.enableBlacklistXmlToolCall = true`
@@ -35,42 +36,41 @@
 
 ### 2) 常用命令
 
-- `affinity.inspect [userId] [platform]`：查看好感度详情
-- `affinity.rank [limit] [platform] [image]`：查看好感度排行
-- `affinity.adjust <userId> <delta> [platform]`：手动调整好感度
-- `affinity.blacklist [limit] [platform] [image]`：查看黑名单
-- `affinity.block <userId> [platform]`：永久拉黑
-- `affinity.unblock <userId> [platform]`：解除永久拉黑
-- `affinity.tempBlock <userId> [durationHours] [platform]`：临时拉黑
-- `affinity.tempUnblock <userId> [platform]`：解除临时拉黑
-- `affinity.clearAll -y`：清空好感度与黑名单数据（危险操作）
+命令统一改为 `scopeId.指令名`。
+
+- `宁宁.inspect [userId] [platform] [image]`：查看好感度详情
+- `宁宁.rank [limit] [image]`：查看好感度排行
+- `宁宁.adjust <userId> <delta>`：手动调整好感度
+- `宁宁.blacklist [limit] [platform] [image]`：查看黑名单
+- `宁宁.block <userId> [platform]`：永久拉黑
+- `宁宁.unblock <userId> [platform]`：解除永久拉黑，并将该用户好感度重置为黑名单设置中的初始值
+- `宁宁.tempBlock <userId> [durationHours] [platform]`：临时拉黑
+- `宁宁.tempUnblock <userId> [platform]`：解除临时拉黑
+- `宁宁.clearAll -y`：清空当前作用域下的好感度、黑名单与昵称数据（危险操作）
 
 ### 3) 变量（默认名）
 
-- `affinity`：当前用户好感度相关信息
-- `relationshipAffinityLevel`：完整好感区间关系表
-- `blacklistList`：当前群内黑名单信息
-- `userAlias`：指定用户的自定义昵称信息
+变量统一改为 `变量名(scopeId[, userId])`。
 
-变量名可通过 `variableSettings` 重命名。
+- `affinity(宁宁)`：当前用户好感度相关信息
+- `relationshipLevel(宁宁)`：完整好感区间关系表
+- `blacklistList(宁宁)`：当前会话可见范围内的黑名单信息
+- `userAlias(宁宁)`：指定用户的自定义昵称信息
+
+变量名可通过 `variableSettings` 重命名，但调用时必须显式传入 `scopeId`；未传 scopeId 将返回空字符串。
 
 ## XML 动作调用
 
 插件可从模型原始输出中解析以下自闭合标签：
 
-- `<affinity delta="" action="" id=""/>`
-- `<blacklist action="" mode="" id="" durationHours="" note=""/>`
-- `<relationship relation="" id=""/>`
-- `<userAlias id="" name=""/>`
+- `<affinity scopeId="" userId="" action="increase|decrease" delta=""/>`
+- `<blacklist scopeId="" userId="" action="add|remove" mode="permanent|temporary" durationHours="" note=""/>`
+- `<relationship scopeId="" userId="" action="set|clear" relation=""/>`
+- `<userAlias scopeId="" userId="" name=""/>`
 
 对应开关位于 `xmlToolSettings`。
 
-## 原生工具（可选）
-
-可通过 `nativeToolSettings` 控制是否注册：
-
-- `relationship`：关系调整工具
-- `blacklist`：黑名单工具（含临时拉黑）
+其中 XML 的 `scopeId` 为必填字段，必须显式填写当前插件实例的 `scopeId`。插件不会回退到会话推导，也不会猜测或改写错误的 `scopeId`。
 
 ## 数据存储
 
@@ -85,13 +85,35 @@
 配置由以下分组组成：
 
 - 好感度：`AffinitySchema`
-- 黑名单：`BlacklistSchema`
+- 黑名单：`BlacklistSchema`（含 `unblockPermanentInitialAffinity`，用于设置解除永久黑名单后的初始好感度）
 - 关系：`RelationshipSchema`
-- 变量/原生工具/XML 工具/其他：`tools` 分组
+- 作用域/变量/XML 工具/其他：`tools` 分组
 
 完整配置入口：`ConfigSchema`。
 
 ## 迁移说明
+
+### 数据库迁移
+
+当前版本**不再提供 affinity 数据自动迁移**。
+
+如果你是从旧版本升级，且历史数据库中的 `chatluna_affinity` 仍然保留旧结构，请先手动处理旧数据，再启动新版本；否则运行时可能直接出现数据库字段或约束错误。
+
+已知变更点：
+
+- affinity 侧已经移除 `selfId` 语义
+- 当前结构改为以 `scopeId + userId` 作为核心定位键
+- 多 bot 不再按 `selfId` 隔离 affinity 数据，而是按 `scopeId` 共享
+
+如果你不需要保留旧好感度数据，最直接的处理方式是执行：
+
+- `你的scopeId.clearAll -y`
+
+这会清空好感度与黑名单数据，并按当前版本结构重新建立后续数据。
+
+如果你需要保留旧数据，请在升级前自行完成数据库迁移，不要依赖插件启动时自动修复。
+
+### 插件拆分
 
 当前版本已将部分能力拆分为独立插件：
 
@@ -101,7 +123,8 @@
 ## 调试建议
 
 - 开启 `debugLogging` 查看 XML 拦截、状态写入、变量注册等日志。
-- 若遇到旧数据结构问题，可使用 `affinity.clearAll -y` 清理后重建。
+- 若解除永久黑名单后希望用户从更安全的状态重新开始，可调整 `unblockPermanentInitialAffinity`。
+- 若遇到旧数据结构问题，可使用 `你的scopeId.clearAll -y` 清理当前作用域后重建。
 
 ## 许可证
 
@@ -115,12 +138,12 @@ MIT © 2024-present chatluna-affinity contributors
 
 ### 新增
 - 黑名单、关系调整 XML 工具调用。
-- 黑名单临时拉黑能力（XML/原生工具）。
+- 黑名单临时拉黑能力（XML）。
 - `blacklistList` 变量（当前群黑名单信息）。
 - 用户自定义昵称能力：`userAlias` XML 工具 + `userAlias` 变量，数据持久化到数据库。
 
 ### 调整
-- 黑名单能力改为由 Bot 通过 XML/工具自主决策（含永久/临时与解除）。
+- 黑名单能力改为由 Bot 通过 XML 自主决策（含永久/临时与解除）。
 - 黑名单相关数据由配置存储迁移为数据库存储。
 - `contextAffinity` 变量能力并入 `affinity` 变量。
 - 日程、天气能力拆分至 `koishi-plugin-chatluna-schedule`。
@@ -160,7 +183,7 @@ MIT © 2024-present chatluna-affinity contributors
 
 0.2.2-alpha.12
 - groupInfo 变量新增 includeOwnersAndAdmins 配置，用于展示群主/管理员名单
-- 关系设置新增新增好感度区间变量 relationshipAffinityLevel ，按配置逐行展示所有好感度区间、关系与备注
+- 关系设置新增新增好感度区间变量 relationshipLevel ，按配置逐行展示所有好感度区间、关系与备注
 
 0.2.2-alpha.11
 - 撤回工具修改为按 messageid 撤回，移除 lastN/关键词等模糊匹配路径
