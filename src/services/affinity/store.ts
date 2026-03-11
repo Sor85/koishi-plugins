@@ -29,15 +29,10 @@ export interface AffinityStoreOptions {
 export function createAffinityStore(options: AffinityStoreOptions) {
   const { ctx, config } = options;
 
-  const resolveInitialMin = () =>
-    Number.isFinite(config.initialRandomMin)
-      ? config.initialRandomMin
-      : (config.baseAffinityConfig?.initialRandomMin ?? 20);
-
-  const resolveInitialMax = () =>
-    Number.isFinite(config.initialRandomMax)
-      ? config.initialRandomMax
-      : (config.baseAffinityConfig?.initialRandomMax ?? 40);
+  const resolveInitialAffinity = () =>
+    Number.isFinite(config.initialAffinity)
+      ? config.initialAffinity
+      : (config.baseAffinityConfig?.initialAffinity ?? 30);
 
   const resolveMin = () => {
     const levels = config.relationshipAffinityLevels || [];
@@ -64,18 +59,13 @@ export function createAffinityStore(options: AffinityStoreOptions) {
     return null;
   };
 
-  const randomInitial = (): number => {
-    const low = resolveInitialMin();
-    const high = resolveInitialMax();
-    return clampValue(low + Math.floor(Math.random() * (high - low + 1)));
-  };
+  const randomInitial = (): number => defaultInitial();
 
-  const defaultInitial = (): number =>
-    clampValue(Math.floor((resolveInitialMin() + resolveInitialMax()) / 2));
+  const defaultInitial = (): number => clampValue(resolveInitialAffinity());
 
   const initialRange = (): InitialRange => ({
-    low: resolveInitialMin(),
-    high: resolveInitialMax(),
+    low: defaultInitial(),
+    high: defaultInitial(),
     min: resolveMin(),
     max: resolveMax(),
   });
@@ -94,7 +84,7 @@ export function createAffinityStore(options: AffinityStoreOptions) {
 
   const extractState = (record: AffinityRecord | null): AffinityState => {
     if (!record) {
-      const base = randomInitial();
+      const base = defaultInitial();
       return {
         affinity: base,
         longTermAffinity: base,
@@ -324,7 +314,7 @@ export function createAffinityStore(options: AffinityStoreOptions) {
     const initial =
       fallbackInitial !== undefined
         ? clampFn(fallbackInitial, resolveMin(), resolveMax())
-        : randomInitial();
+        : defaultInitial();
     const initialState = createInitialState(initial);
 
     await save({ ...seed, scopeId, userId }, initialState.affinity, "", {

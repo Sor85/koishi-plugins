@@ -102,16 +102,11 @@ export const AffinitySchema = Schema.object({
     .default(1)
     .min(1)
     .step(1)
-    .description(
-      "上下文中用户好感度变量显示范围",
-    ),
+    .description("上下文中用户好感度变量显示范围"),
   baseAffinityConfig: Schema.object({
-    initialRandomMin: Schema.number()
-      .default(BASE_AFFINITY_DEFAULTS.initialRandomMin)
-      .description("初始长期好感度随机范围下限"),
-    initialRandomMax: Schema.number()
-      .default(BASE_AFFINITY_DEFAULTS.initialRandomMax)
-      .description("初始长期好感度随机范围上限"),
+    initialAffinity: Schema.number()
+      .default(BASE_AFFINITY_DEFAULTS.initialAffinity)
+      .description("初始长期好感度默认值"),
     maxIncreasePerMessage: Schema.number()
       .default(BASE_AFFINITY_DEFAULTS.maxIncreasePerMessage)
       .description("单次增加的短期好感最大幅度"),

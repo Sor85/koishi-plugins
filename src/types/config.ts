@@ -4,8 +4,7 @@
  */
 
 export interface BaseAffinityConfig {
-  initialRandomMin: number;
-  initialRandomMax: number;
+  initialAffinity: number;
   maxIncreasePerMessage: number;
   maxDecreasePerMessage: number;
 }
@@ -75,8 +74,7 @@ export interface Config {
   affinityEnabled: boolean;
   affinityDisplayRange: number;
   baseAffinityConfig: BaseAffinityConfig;
-  initialRandomMin: number;
-  initialRandomMax: number;
+  initialAffinity: number;
   maxIncreasePerMessage: number;
   maxDecreasePerMessage: number;
   affinityDynamics: AffinityDynamicsConfig;

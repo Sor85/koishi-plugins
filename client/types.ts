@@ -56,6 +56,11 @@ export interface FrontendConfigSubset {
 
   variableSettings?: VariableSettings;
   xmlToolSettings?: XmlToolSettings;
+  baseAffinityConfig?: {
+    initialAffinity?: number;
+    maxIncreasePerMessage?: number;
+    maxDecreasePerMessage?: number;
+  };
 
   affinityVariableName?: string;
   relationshipLevelVariableName?: string;

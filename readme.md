@@ -29,6 +29,7 @@
 
 - `scopeId` 已设置为当前角色实例的唯一标识
 - `affinityEnabled = true`
+- `baseAffinityConfig.initialAffinity = 30`（默认值，可自定义）
 - `xmlToolSettings.enableAffinityXmlToolCall = true`
 - `xmlToolSettings.enableBlacklistXmlToolCall = true`
 - `xmlToolSettings.enableRelationshipXmlToolCall = true`
@@ -52,7 +53,7 @@
 
 变量统一改为 `变量名(scopeId[, userId])`。
 
-- `affinity(宁宁)`：当前用户好感度相关信息
+- `affinity(宁宁)`：当前用户好感度相关信息；若数据库无记录，则返回默认好感及对应关系
 - `relationshipLevel(宁宁)`：完整好感区间关系表
 - `blacklistList(宁宁)`：当前会话可见范围内的黑名单信息
 - `userAlias(宁宁)`：指定用户的自定义昵称信息
@@ -69,6 +70,8 @@
 - `<userAlias scopeId="" userId="" name=""/>`
 
 对应开关位于 `xmlToolSettings`。
+
+普通会话消息不会自动初始化好感度记录。只有 XML 的 `affinity increase/decrease`、手动 `adjust` 等显式写路径才会在无记录时按 `baseAffinityConfig.initialAffinity` 初始化到数据库。
 
 其中 XML 的 `scopeId` 为必填字段，必须显式填写当前插件实例的 `scopeId`。插件不会回退到会话推导，也不会猜测或改写错误的 `scopeId`。
 

@@ -23,6 +23,13 @@ export interface AffinityProviderDeps {
 export function createAffinityProvider(deps: AffinityProviderDeps) {
   const { config, cache, store, fetchEntries } = deps;
 
+  const resolveRelationByAffinity = (affinity: number): string => {
+    const level = (config.relationshipAffinityLevels || []).find(
+      (item) => affinity >= item.min && affinity <= item.max,
+    );
+    return level?.relation || "未知";
+  };
+
   return async (
     args: unknown[] | undefined,
     _variables: unknown,
@@ -38,26 +45,18 @@ export function createAffinityProvider(deps: AffinityProviderDeps) {
     if (!scopeId || scopeId !== config.scopeId) return "";
 
     const targetUserId = resolved?.targetUserId || session.userId;
-    if (config.debugLogging) {
-      console.log("[chatluna-affinity] affinity variable", {
-        scopeId,
-        targetUserId,
-        sessionUserId: session.userId,
-        platform: session.platform,
-        hasArgs: Array.isArray(args) && args.length > 0,
-        resolvedScopeId: resolved?.scopeId || "",
-        resolvedTargetUserId: resolved?.targetUserId || "",
-      });
-    }
     const cached = cache.get(scopeId, targetUserId);
     if (cached !== null && (config.affinityDisplayRange ?? 1) <= 1) {
       return cached;
     }
 
     const currentRecord = await store.load(scopeId, targetUserId);
-    if (!currentRecord) return "";
-
-    const currentAffinity = currentRecord.affinity ?? 0;
+    const currentAffinity = currentRecord?.affinity ?? store.defaultInitial();
+    const currentRelation =
+      currentRecord?.specialRelation ||
+      currentRecord?.relation ||
+      resolveRelationByAffinity(currentAffinity);
+    const currentName = currentRecord?.nickname || targetUserId;
     cache.set(scopeId, targetUserId, currentAffinity);
 
     const displayRange = Math.max(
@@ -84,9 +83,6 @@ export function createAffinityProvider(deps: AffinityProviderDeps) {
     }
 
     const rows: string[] = [];
-    const currentRelation =
-      currentRecord.specialRelation || currentRecord.relation || "未知";
-    const currentName = currentRecord.nickname || targetUserId;
     rows.push(
       `id:${targetUserId} name:${currentName} affinity:${currentAffinity} relationship:${currentRelation}`,
     );
@@ -96,10 +92,12 @@ export function createAffinityProvider(deps: AffinityProviderDeps) {
     const others = await Promise.all(
       orderedUsers.map(async ({ userId, username }) => {
         const record = await store.load(scopeId, userId);
-        if (!record) return null;
-        const affinity = record.affinity ?? 0;
-        const relation = record.specialRelation || record.relation || "未知";
-        const name = username || record.nickname || userId;
+        const affinity = record?.affinity ?? store.defaultInitial();
+        const relation =
+          record?.specialRelation ||
+          record?.relation ||
+          resolveRelationByAffinity(affinity);
+        const name = username || record?.nickname || userId;
         return `id:${userId} name:${name} affinity:${affinity} relationship:${relation}`;
       }),
     );

@@ -74,8 +74,7 @@ export const FETCH_CONSTANTS = {
 } as const;
 
 export const BASE_AFFINITY_DEFAULTS = {
-  initialRandomMin: 10,
-  initialRandomMax: 30,
+  initialAffinity: 30,
   maxIncreasePerMessage: 5,
   maxDecreasePerMessage: 10,
 } as const;

@@ -57,18 +57,54 @@ function normalizeBaseAffinityConfig(config: Config): void {
     ...BASE_AFFINITY_DEFAULTS,
     ...(config.baseAffinityConfig || {}),
   };
+  const legacyInitialMin = (config as unknown as Record<string, unknown>)
+    .initialRandomMin;
+  const legacyInitialMax = (config as unknown as Record<string, unknown>)
+    .initialRandomMax;
+  const legacyInitialAffinity = (config as unknown as Record<string, unknown>)
+    .initialAffinity;
+
+  const readNumeric = (value: unknown): number | null => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const explicitInitialAffinity = readNumeric(legacyInitialAffinity);
+  const explicitInitialMin = readNumeric(legacyInitialMin);
+  const explicitInitialMax = readNumeric(legacyInitialMax);
+
+  if (explicitInitialAffinity !== null) {
+    base.initialAffinity = explicitInitialAffinity;
+  } else if (explicitInitialMin !== null && explicitInitialMax !== null) {
+    base.initialAffinity = Math.floor(
+      (explicitInitialMin + explicitInitialMax) / 2,
+    );
+  } else if (explicitInitialMin !== null) {
+    base.initialAffinity = explicitInitialMin;
+  } else if (explicitInitialMax !== null) {
+    base.initialAffinity = explicitInitialMax;
+  }
+
   for (const key of BASE_KEYS) {
     const legacy = (config as unknown as Record<string, unknown>)[key];
     if (legacy !== undefined && legacy !== null) {
       const numeric = Number(legacy);
-      if (Number.isFinite(numeric))
+      if (Number.isFinite(numeric)) {
         (base as Record<string, number>)[key] = numeric;
+      }
     }
   }
+
   config.baseAffinityConfig = base;
+  for (const legacyKey of ["initialRandomMin", "initialRandomMax"]) {
+    if (Object.prototype.hasOwnProperty.call(config, legacyKey)) {
+      delete (config as unknown as Record<string, unknown>)[legacyKey];
+    }
+  }
   for (const key of BASE_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(config, key))
+    if (Object.prototype.hasOwnProperty.call(config, key)) {
       delete (config as unknown as Record<string, unknown>)[key];
+    }
     Object.defineProperty(config, key, {
       configurable: true,
       enumerable: true,
@@ -81,8 +117,9 @@ function normalizeBaseAffinityConfig(config: Config): void {
           : (BASE_AFFINITY_DEFAULTS as unknown as Record<string, number>)[key];
       },
       set(value: number) {
-        if (!config.baseAffinityConfig)
+        if (!config.baseAffinityConfig) {
           config.baseAffinityConfig = { ...BASE_AFFINITY_DEFAULTS };
+        }
         (config.baseAffinityConfig as unknown as Record<string, number>)[key] =
           value;
       },
@@ -252,38 +289,6 @@ export function apply(ctx: Context, config: Config): void {
     blacklistGuard.middleware as Parameters<typeof ctx.middleware>[0],
     true,
   );
-
-  const affinityInitCache = new Set<string>();
-  const makeAffinityInitKey = (session: Session): string =>
-    `${config.scopeId}:${session.userId || "unknown"}`;
-
-  ctx.middleware(async (session, next) => {
-    if (config.affinityEnabled) {
-      const platform = session?.platform;
-      const userId = session?.userId;
-      if (platform && userId && userId !== session?.selfId) {
-        const key = makeAffinityInitKey(session);
-        if (!affinityInitCache.has(key)) {
-          affinityInitCache.add(key);
-          try {
-            const state = await store.ensureForUser(
-              config.scopeId,
-              session,
-              userId,
-              (value, low, high) => Math.min(Math.max(value, low), high),
-            );
-            if (state.isNew && config.debugLogging) {
-              log("debug", "已初始化好感度记录", { platform, userId });
-            }
-          } catch (error) {
-            affinityInitCache.delete(key);
-            log("warn", "初始化好感度失败", error);
-          }
-        }
-      }
-    }
-    return next();
-  });
 
   const processModelResponse = async (response: string): Promise<void> => {
     if (!response) return;
