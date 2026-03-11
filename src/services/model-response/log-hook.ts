@@ -227,21 +227,31 @@ export function createCharacterModelResponseRuntime(
   const attach = (): boolean => {
     const characterService = getCharacterService();
     const logger = characterService?.logger;
+    const debug = logger?.debug;
+    const sameLogger = Boolean(activeLogger && activeLogger === logger);
+    const sameDebug = Boolean(activeOwner && activeOwner === debug);
+    const tagged = isTaggedDebug(debug, tag);
+    const owned = hasOwnedTaggedDebug(debug, activeOwner, tag);
     log?.("info", "模型响应拦截 runtime attach 检查", {
       hasCharacterService: Boolean(characterService),
       hasLogger: Boolean(logger),
-      debugType: typeof logger?.debug,
+      debugType: typeof debug,
+      sameLogger,
+      sameDebug,
+      tagged,
+      owned,
     });
-    if (!logger || typeof logger.debug !== "function") return false;
+    if (!logger || typeof debug !== "function") return false;
 
     if (activeLogger && activeLogger !== logger) {
+      log?.("warn", "模型响应拦截器检测到 logger 实例变化", {
+        hadActiveLogger: Boolean(activeLogger),
+        sameLogger,
+      });
       restore();
     }
 
-    if (
-      activeLogger === logger &&
-      hasOwnedTaggedDebug(logger.debug, activeOwner, tag)
-    ) {
+    if (activeLogger === logger && owned) {
       return true;
     }
 
@@ -268,9 +278,22 @@ export function createCharacterModelResponseRuntime(
 
   const isActive = (): boolean => {
     const logger = getCharacterService()?.logger;
-    return Boolean(
-      logger && hasOwnedTaggedDebug(logger.debug, activeOwner, tag),
+    const debug = logger?.debug;
+    const owned = Boolean(
+      logger && hasOwnedTaggedDebug(debug, activeOwner, tag),
     );
+
+    if (!owned && activeOwner) {
+      log?.("debug", "模型响应拦截器当前判定为失活", {
+        hasLogger: Boolean(logger),
+        sameLogger: Boolean(activeLogger && activeLogger === logger),
+        sameDebug: activeOwner === debug,
+        tagged: isTaggedDebug(debug, tag),
+        debugType: typeof debug,
+      });
+    }
+
+    return owned;
   };
 
   const startFastRetry = (): void => {
