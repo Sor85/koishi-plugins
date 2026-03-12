@@ -52,7 +52,9 @@ const PUSH_DISPATCHER = Symbol("chatlunaAffinityPushDispatcher");
 function getMessageType(message: MessageLike | null | undefined): string {
   if (!message) return "";
   if (typeof message._getType === "function") {
-    return String(message._getType() || "").trim().toLowerCase();
+    return String(message._getType() || "")
+      .trim()
+      .toLowerCase();
   }
   return String(message.type || message.role || "")
     .trim()
@@ -93,12 +95,9 @@ function getResponseText(message: MessageLike | null | undefined): string {
   return extractText(message?.content ?? message?.text).trim();
 }
 
-function getDispatcher(
-  messages: CompletionMessagesArray,
-): Dispatcher | null {
-  return ((messages as unknown as Record<symbol, unknown>)[
-    PUSH_DISPATCHER
-  ] ?? null) as Dispatcher | null;
+function getDispatcher(messages: CompletionMessagesArray): Dispatcher | null {
+  return ((messages as unknown as Record<symbol, unknown>)[PUSH_DISPATCHER] ??
+    null) as Dispatcher | null;
 }
 
 function setDispatcher(
@@ -199,8 +198,13 @@ function registerGetTempListener(
     });
 
     service.getTemp = async (...args: unknown[]) => {
-      const originalGetTemp = serviceRecord[GET_TEMP_ORIGINAL] as CharacterServiceLike["getTemp"];
-      const temp = (await originalGetTemp?.apply(service, args)) as GroupTempLike;
+      const originalGetTemp = serviceRecord[
+        GET_TEMP_ORIGINAL
+      ] as CharacterServiceLike["getTemp"];
+      const temp = (await originalGetTemp?.apply(
+        service,
+        args,
+      )) as GroupTempLike;
       const activeListeners = serviceRecord[GET_TEMP_LISTENERS] as
         | Set<(temp: GroupTempLike) => void>
         | undefined;
@@ -221,7 +225,9 @@ function registerGetTempListener(
       | undefined;
     currentListeners?.delete(listener);
     if (currentListeners?.size) return;
-    const originalGetTemp = serviceRecord[GET_TEMP_ORIGINAL] as CharacterServiceLike["getTemp"];
+    const originalGetTemp = serviceRecord[
+      GET_TEMP_ORIGINAL
+    ] as CharacterServiceLike["getTemp"];
     if (typeof originalGetTemp === "function" && service.getTemp) {
       service.getTemp = originalGetTemp;
     }
@@ -235,9 +241,13 @@ export function createCharacterTempModelResponseRuntime(
   params: CharacterTempModelResponseRuntimeParams,
 ): CharacterTempModelResponseRuntime {
   const { getCharacterService, processModelResponse, log } = params;
-  const messageSubscriptions = new WeakMap<CompletionMessagesArray, () => void>();
+  const messageSubscriptions = new WeakMap<
+    CompletionMessagesArray,
+    () => void
+  >();
   const trackedArrays = new Set<CompletionMessagesArray>();
   let restoreGetTemp: (() => void) | null = null;
+  let activeService: CharacterServiceLike | null = null;
   let active = false;
 
   const ensureTempPatched = (temp: GroupTempLike): void => {
@@ -264,25 +274,60 @@ export function createCharacterTempModelResponseRuntime(
     });
   };
 
+  const bindCurrentService = (): {
+    bound: boolean;
+    changed: boolean;
+    missing: boolean;
+  } => {
+    const service = getCharacterService();
+    if (!service || typeof service.getTemp !== "function") {
+      if (restoreGetTemp) {
+        restoreGetTemp();
+        restoreGetTemp = null;
+      }
+      activeService = null;
+      active = false;
+      return { bound: false, changed: false, missing: true };
+    }
+
+    if (restoreGetTemp && activeService === service) {
+      active = true;
+      return { bound: true, changed: false, missing: false };
+    }
+
+    restoreGetTemp?.();
+    restoreGetTemp = registerGetTempListener(service, ensureTempPatched);
+    activeService = restoreGetTemp ? service : null;
+    active = Boolean(restoreGetTemp);
+    return {
+      bound: active,
+      changed: true,
+      missing: false,
+    };
+  };
+
   return {
     start: () => {
-      if (active) return true;
-      const service = getCharacterService();
-      if (!service || typeof service.getTemp !== "function") {
-        log?.("warn", "chatluna_character.getTemp 不可用，跳过 temp 模型响应适配");
+      const { bound, changed, missing } = bindCurrentService();
+      if (!bound) {
+        if (missing) {
+          log?.(
+            "warn",
+            "chatluna_character.getTemp 不可用，跳过 temp 模型响应适配",
+          );
+        }
         return false;
       }
 
-      restoreGetTemp = registerGetTempListener(service, ensureTempPatched);
-      active = Boolean(restoreGetTemp);
-      if (active) {
+      if (changed) {
         log?.("info", "已启用基于 getTemp 的模型响应适配");
       }
-      return active;
+      return true;
     },
     stop: () => {
       restoreGetTemp?.();
       restoreGetTemp = null;
+      activeService = null;
       for (const messages of Array.from(trackedArrays)) {
         messageSubscriptions.get(messages)?.();
         messageSubscriptions.delete(messages);

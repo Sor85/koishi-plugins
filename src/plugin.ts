@@ -284,8 +284,11 @@ export function apply(ctx: Context, config: Config): void {
     processModelResponse,
     log,
   });
+  let modelResponseRuntimeMonitor: (() => void) | null = null;
 
   ctx.on("dispose", () => {
+    modelResponseRuntimeMonitor?.();
+    modelResponseRuntimeMonitor = null;
     modelResponseRuntime.stop();
   });
 
@@ -406,6 +409,10 @@ export function apply(ctx: Context, config: Config): void {
 
     log("info", "准备启动模型响应拦截 runtime");
     modelResponseRuntime.start();
+    modelResponseRuntimeMonitor?.();
+    modelResponseRuntimeMonitor = ctx.setInterval(() => {
+      modelResponseRuntime.start();
+    }, 3000);
     log("info", "模型响应拦截 runtime.start() 调用完成");
 
     log("info", "插件初始化完成");
