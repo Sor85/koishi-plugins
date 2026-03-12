@@ -31,6 +31,11 @@ interface XmlGenerateInput {
   groupNicknameText?: string;
 }
 
+interface XmlToolSendPayload {
+  memeKey: string;
+  result: string | ReturnType<typeof h.image>;
+}
+
 interface InstallXmlRuntimeOptions {
   ctx: Context;
   config: Config;
@@ -141,18 +146,23 @@ export function installXmlRuntime(options: InstallXmlRuntimeOptions): void {
   const handleXmlMemeToolCall = async (
     session: Session,
     content: string,
-  ): Promise<string | ReturnType<typeof h.image>> => {
-    if (!content) return "";
+  ): Promise<XmlToolSendPayload | null> => {
+    if (!content) return null;
 
     const toolCalls = extractXmlMemeToolCalls(content);
-    if (toolCalls.length === 0) return "";
+    if (toolCalls.length === 0) return null;
+
+    const pickedCall = toolCalls[0];
+    let resolvedKey = pickedCall.key;
 
     try {
       await ensureCategoryExcludedMemeKeySet();
-      const pickedCall = toolCalls[0];
-      const resolvedKey = await resolveMemeKey(pickedCall.key);
+      resolvedKey = await resolveMemeKey(pickedCall.key);
       if (isExcludedMemeKey(resolvedKey)) {
-        return "该模板已被排除。";
+        return {
+          memeKey: resolvedKey,
+          result: "该模板已被排除。",
+        };
       }
 
       const xmlInput = await buildXmlGenerateInput(session, pickedCall);
@@ -162,19 +172,25 @@ export function installXmlRuntime(options: InstallXmlRuntimeOptions): void {
         config.timeoutMs,
       );
 
-      return await handleGenerateWithPreparedInput(
-        resolvedKey,
-        xmlInput.texts,
-        xmlInput.images,
-        xmlInput.senderAvatarImage,
-        xmlInput.targetAvatarImage,
-        xmlInput.secondaryTargetAvatarImage,
-        botAvatarImage,
-        xmlInput.senderName,
-        xmlInput.groupNicknameText,
-      );
+      return {
+        memeKey: resolvedKey,
+        result: await handleGenerateWithPreparedInput(
+          resolvedKey,
+          xmlInput.texts,
+          xmlInput.images,
+          xmlInput.senderAvatarImage,
+          xmlInput.targetAvatarImage,
+          xmlInput.secondaryTargetAvatarImage,
+          botAvatarImage,
+          xmlInput.senderName,
+          xmlInput.groupNicknameText,
+        ),
+      };
     } catch (error) {
-      return handleRuntimeError("meme.xml", error);
+      return {
+        memeKey: resolvedKey,
+        result: handleRuntimeError("meme.xml", error),
+      };
     }
   };
 
@@ -328,9 +344,15 @@ export function installXmlRuntime(options: InstallXmlRuntimeOptions): void {
       }
 
       void handleXmlMemeToolCall(session, response)
-        .then(async (result) => {
-          if (!result) return;
-          await session.send(result);
+        .then(async (payload) => {
+          if (!payload) return;
+          await session.send(payload.result);
+          logger.info(
+            "meme=%s, user=%s, guild=%s",
+            payload.memeKey,
+            session.userId,
+            session.guildId,
+          );
         })
         .catch((error) => {
           logger.warn("meme.xml raw interceptor failed: %s", String(error));

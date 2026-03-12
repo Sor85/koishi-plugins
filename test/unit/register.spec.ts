@@ -417,6 +417,38 @@ describe("registerCommands", () => {
     );
   });
 
+  it("启用 XML 工具后可记录发送成功日志", async () => {
+    const { ctx, readyHandlers, rawCollectors, characterLogger, loggerInfo } =
+      createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        enableMemeXmlTool: true,
+        enableDirectAliasWithoutPrefix: false,
+      }),
+    );
+
+    await flushReadyHandlers(readyHandlers);
+    const session = createSession("ignored") as any;
+    session.userId = "1291774425";
+    session.guildId = "987654321";
+    await rawCollectors[0](session);
+
+    characterLogger.debug(
+      'model response: <meme key="qizhu" text="你好|世界" image"https://a.png|https://b.jpg" at="10001|10002"/>',
+    );
+    await flushAsyncCycles();
+
+    expect(session.send).toHaveBeenCalledTimes(1);
+    expect(loggerInfo).toHaveBeenCalledWith(
+      "meme=%s, user=%s, guild=%s",
+      "qizhu",
+      "1291774425",
+      "987654321",
+    );
+  });
+
   it("启用 XML 工具后应兼容 model response 冒号后直接换行", async () => {
     const { ctx, readyHandlers, rawCollectors, characterLogger } =
       createMockContext();
