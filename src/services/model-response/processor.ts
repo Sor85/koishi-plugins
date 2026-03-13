@@ -250,7 +250,6 @@ export function createModelResponseProcessor(
           ).trim();
           const platform = String(attrs.platform || "onebot").trim();
           const delta = Number(attrs.delta || "");
-          const value = Number(attrs.value || "");
 
           if (config.debugLogging) {
             log("debug", "开始处理 affinity XML", {
@@ -276,28 +275,6 @@ export function createModelResponseProcessor(
               action,
               userId,
             });
-            continue;
-          }
-
-          if (action === "set") {
-            if (!Number.isFinite(value)) {
-              log("warn", "忽略 affinity XML：set 缺少合法 value", {
-                scopeId,
-                action,
-                userId,
-                value,
-              });
-              continue;
-            }
-            await store.save(
-              {
-                scopeId,
-                platform,
-                userId,
-              },
-              value,
-            );
-            cache.clear(scopeId, userId);
             continue;
           }
 
