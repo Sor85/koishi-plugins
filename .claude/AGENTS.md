@@ -1,4 +1,5 @@
 [项目约束]
+- 仅适配 onebot 平台
 - 一次“互动”的定义是：当前实例通过 `getTemp(session, ...)` 获取到有效 `session`，且对应 `completionMessages.push(...)` 写入一条有效 AI 回复文本时，计为 1 次互动
 - ChatLuna XML 工具语义约定：`affinity`、`blacklist`、`relationship` 三类 XML 直接按显式参数执行，不再依赖 `session`、最近会话或日志回绑来猜测目标
 - 当前方向下，`affinity`、`blacklist`、`relationship` 都按 `scopeId` 做多实例隔离；是否命中哪条记录由 `scopeId + userId` 等主键字段决定，而不是由 `channelId` 决定

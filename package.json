@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-chatluna-affinity",
-  "description": "ChatLuna Character 好感度系统，提供 {好感度}、{关系}、{黑名单} 变量与工具，并支持 XML 工具调用。",
+  "description": "ChatLuna Character 好感度系统，提供 {好感度}、{关系}、{黑名单} 变量与工具，并支持 XML 工具调用，仅支持 onebot 平台。",
   "version": "0.3.0-alpha.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
