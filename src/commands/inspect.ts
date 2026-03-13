@@ -103,7 +103,7 @@ export function registerInspectCommand(deps: CommandDependencies) {
         `长期好感度：${state.longTermAffinity}`,
         `短期好感度：${state.shortTermAffinity}`,
         `好感度系数：${coefficient.toFixed(2)}（连续互动 ${state.coefficientState?.streak ?? 0} 天）`,
-        `交互统计：总计 ${state.chatCount} 次`,
+        `互动统计：总计 ${state.chatCount} 次`,
         `最后互动：${formatTimestamp(state.lastInteractionAt)}`,
         ...(showImpression && impression ? [`印象：${impression}`] : []),
       ];

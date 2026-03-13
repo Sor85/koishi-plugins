@@ -66,6 +66,7 @@ function createConfig(overrides = {}) {
 function createProcessorHarness(overrides = {}) {
   const calls = {
     ensureForSeed: [],
+    recordInteraction: [],
     save: [],
     load: [],
     clear: [],
@@ -105,6 +106,10 @@ function createProcessorHarness(overrides = {}) {
         },
         coefficientState: { coefficient: 1 },
       };
+    },
+    async recordInteraction(seed, userId) {
+      calls.recordInteraction.push({ seed, userId });
+      return { ok: true };
     },
     async save(seed, value, relation, extra) {
       calls.save.push({ seed, value, relation, extra });
@@ -241,6 +246,65 @@ test("createModelResponseProcessor 在已有记录时不重复首次初始化", 
   assert.equal(calls.load.length, 1);
   assert.deepEqual(calls.load[0], { scopeId: "宁宁", userId: "1001" });
 });
+
+test("createModelResponseProcessor 在有效回复时记录一次真实互动", async () => {
+  const { processor, calls } = createProcessorHarness({
+    config: {
+      affinityInitSelfIds: ["bot-a"],
+    },
+  });
+  const session = createSession();
+
+  await processor({
+    response: "普通回复文本",
+    session,
+  });
+
+  assert.equal(calls.recordInteraction.length, 1);
+  assert.deepEqual(calls.recordInteraction[0], {
+    seed: {
+      scopeId: "宁宁",
+      platform: "onebot",
+      userId: "1001",
+      session,
+    },
+    userId: "1001",
+  });
+});
+
+test("createModelResponseProcessor 在单条回复含多个 XML 时只记录一次真实互动", async () => {
+  const { processor, calls } = createProcessorHarness({
+    config: {
+      affinityInitSelfIds: ["bot-a"],
+    },
+  });
+  const session = createSession();
+
+  await processor({
+    response:
+      '<affinity scopeId="宁宁" userId="1001" action="increase" delta="2" /><relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
+    session,
+  });
+
+  assert.equal(calls.recordInteraction.length, 1);
+});
+
+test("createModelResponseProcessor 在 userId 等于 selfId 时不记录互动", async () => {
+  const { processor, calls } = createProcessorHarness({
+    config: {
+      affinityInitSelfIds: ["bot-a"],
+    },
+  });
+
+  await processor({
+    response: "普通回复文本",
+    session: createSession({ userId: "bot-a" }),
+  });
+
+  assert.equal(calls.ensureForSeed.length, 0);
+  assert.equal(calls.recordInteraction.length, 0);
+});
+
 test("createModelResponseProcessor 处理合法 affinity increase 并清理缓存", async () => {
   const { processor, calls } = createProcessorHarness();
 

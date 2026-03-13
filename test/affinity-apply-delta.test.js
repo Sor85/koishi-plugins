@@ -19,7 +19,11 @@ function createHarness(overrides = {}) {
     longTermAffinity: 30,
     shortTermAffinity: 0,
     chatCount: 0,
-    actionStats: { total: 0, counts: { increase: 0, decrease: 0 }, entries: [] },
+    actionStats: {
+      total: 0,
+      counts: { increase: 0, decrease: 0 },
+      entries: [],
+    },
     coefficientState: { coefficient: 1 },
     ...overrides.currentState,
   };
@@ -80,6 +84,8 @@ test("applyAffinityDelta 未跨正向阈值时只累加短期好感", async () =
   assert.equal(calls.save[0].value, 30);
   assert.equal(calls.save[0].extra.longTermAffinity, 30);
   assert.equal(calls.save[0].extra.shortTermAffinity, 4);
+  assert.equal(calls.save[0].extra.chatCount, undefined);
+  assert.equal(calls.save[0].extra.lastInteractionAt, undefined);
 });
 
 test("applyAffinityDelta 正向大幅增加跨阈值时长期只增加一次且短期归零", async () => {
@@ -115,6 +121,20 @@ test("applyAffinityDelta 负向大幅减少跨阈值时长期只减少一次且�
   assert.equal(calls.save[0].value, 35);
   assert.equal(calls.save[0].extra.longTermAffinity, 35);
   assert.equal(calls.save[0].extra.shortTermAffinity, 0);
+});
+
+test("applyAffinityDelta 不再负责累加互动次数或更新时间", async () => {
+  const { params, calls } = createHarness({
+    currentState: { chatCount: 7 },
+    params: { delta: 2, action: "increase" },
+  });
+
+  const result = await applyAffinityDelta(params);
+
+  assert.equal(result.success, true);
+  assert.equal(calls.save.length, 1);
+  assert.equal(calls.save[0].extra.chatCount, undefined);
+  assert.equal(calls.save[0].extra.lastInteractionAt, undefined);
 });
 
 test("applyAffinityDelta 恰好达到正向阈值时触发长期增长并清空短期", async () => {

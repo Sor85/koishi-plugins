@@ -3,25 +3,25 @@
  * 渲染好感度详情卡片图片
  */
 
-import type { Context } from 'koishi'
-import type { LogFn } from '../types'
-import { renderHtml } from './base'
-import { COMMON_STYLE } from './styles'
+import type { Context } from "koishi";
+import type { LogFn } from "../types";
+import { renderHtml } from "./base";
+import { COMMON_STYLE } from "./styles";
 
 export interface InspectData {
-    userId: string
-    nickname: string
-    platform: string
-    relation: string
-    compositeAffinity: number
-    longTermAffinity: number
-    shortTermAffinity: number
-    coefficient: number
-    streak: number
-    chatCount: number
-    lastInteraction: string
-    avatarUrl?: string
-    impression?: string
+  userId: string;
+  nickname: string;
+  platform: string;
+  relation: string;
+  compositeAffinity: number;
+  longTermAffinity: number;
+  shortTermAffinity: number;
+  coefficient: number;
+  streak: number;
+  chatCount: number;
+  lastInteraction: string;
+  avatarUrl?: string;
+  impression?: string;
 }
 
 const INSPECT_STYLE = `
@@ -121,10 +121,10 @@ const INSPECT_STYLE = `
       border-radius: 8px;
       padding: 12px;
     }
-`
+`;
 
 function buildInspectHtml(data: InspectData): string {
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -135,14 +135,14 @@ function buildInspectHtml(data: InspectData): string {
     <div class="card-inspect">
       <div class="header-inspect">
         ${
-            data.avatarUrl
-                ? `<img class="avatar-lg" src="${data.avatarUrl}" onerror="this.style.display='none'" />`
-                : `<div class="avatar-placeholder-lg">${data.nickname.charAt(0)}</div>`
+          data.avatarUrl
+            ? `<img class="avatar-lg" src="${data.avatarUrl}" onerror="this.style.display='none'" />`
+            : `<div class="avatar-placeholder-lg">${data.nickname.charAt(0)}</div>`
         }
         <div class="user-info">
           <div class="nickname-lg">${data.nickname}</div>
-          <div class="sub-text" style="font-size: 14px;">${data.platform ? `${data.platform}/` : ''}${data.userId}</div>
-          ${data.relation && data.relation !== '——' ? `<span class="badge" style="margin-top: 8px; display: inline-block;">${data.relation}</span>` : ''}
+          <div class="sub-text" style="font-size: 14px;">${data.platform ? `${data.platform}/` : ""}${data.userId}</div>
+          ${data.relation && data.relation !== "——" ? `<span class="badge" style="margin-top: 8px; display: inline-block;">${data.relation}</span>` : ""}
         </div>
       </div>
       
@@ -153,7 +153,7 @@ function buildInspectHtml(data: InspectData): string {
         </div>
         <div class="stat-item">
           <div class="stat-value-lg">${data.chatCount}</div>
-          <div class="stat-label">交互次数</div>
+          <div class="stat-label">互动次数</div>
         </div>
         <div class="stat-item">
           <div class="stat-value-lg" style="font-size: 20px; color: #4b5563;">${data.longTermAffinity}</div>
@@ -172,38 +172,40 @@ function buildInspectHtml(data: InspectData): string {
         </div>
         <div class="detail-row" style="border-bottom: 1px solid #f3f4f6;">
           <span class="detail-label">最后互动</span>
-          <span class="detail-val">${data.lastInteraction || '——'}</span>
+          <span class="detail-val">${data.lastInteraction || "——"}</span>
         </div>
       </div>
       ${
-          data.impression
-              ? `
+        data.impression
+          ? `
       <div class="impression-section">
         <div class="impression-title">印象</div>
         <div class="impression-content">${data.impression}</div>
       </div>`
-              : ''
+          : ""
       }
     </div>
   </div>
 </body>
-</html>`
+</html>`;
 }
 
 export function createInspectRenderer(ctx: Context, log?: LogFn) {
-    return async function renderInspect(data: InspectData): Promise<Buffer | null> {
-        const html = buildInspectHtml(data)
-        return renderHtml(
-            ctx,
-            html,
-            {
-                width: 480,
-                height: 600,
-                selector: '#inspect-root'
-            },
-            log
-        )
-    }
+  return async function renderInspect(
+    data: InspectData,
+  ): Promise<Buffer | null> {
+    const html = buildInspectHtml(data);
+    return renderHtml(
+      ctx,
+      html,
+      {
+        width: 480,
+        height: 600,
+        selector: "#inspect-root",
+      },
+      log,
+    );
+  };
 }
 
-export type InspectRenderer = ReturnType<typeof createInspectRenderer>
+export type InspectRenderer = ReturnType<typeof createInspectRenderer>;

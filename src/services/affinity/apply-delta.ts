@@ -126,15 +126,11 @@ export async function applyAffinityDelta(
       ),
     };
     const newCombined = store.clamp(Math.round(newLongTerm * coefficient));
-    const newChatCount = (current?.chatCount || 0) + 1;
-
     await store.save({ ...seed, platform, userId }, newCombined, "", {
       shortTermAffinity: newShortTerm,
       longTermAffinity: newLongTerm,
-      chatCount: newChatCount,
       actionStats: newActionStats,
       coefficientState: current?.coefficientState || undefined,
-      lastInteractionAt: new Date(),
     });
 
     const message = `好感度调整: scopeId=${seed.scopeId || ""}, user=${userId}, action=${action}, delta=${Math.abs(actualDelta)}, shortTerm=${newShortTerm}, longTerm=${newLongTerm}, coefficient=${coefficient}, combined=${newCombined}, stats=increase:${newActionStats.counts.increase}/decrease:${newActionStats.counts.decrease}`;

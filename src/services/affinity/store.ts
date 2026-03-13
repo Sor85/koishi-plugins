@@ -354,6 +354,38 @@ export function createAffinityStore(options: AffinityStoreOptions) {
       fallbackInitial,
     );
 
+  const recordInteraction = async (
+    seed: SessionSeed,
+    userId: string,
+  ): Promise<AffinityRecord | null> => {
+    const scopeId = resolveScopeId(seed.scopeId);
+    const normalizedUserId = String(
+      userId || seed.userId || seed.session?.userId || "",
+    ).trim();
+    if (!scopeId || !normalizedUserId) return null;
+
+    await ensureForSeed(
+      { ...seed, scopeId, userId: normalizedUserId },
+      normalizedUserId,
+      clamp,
+    );
+
+    const existing = await load(scopeId, normalizedUserId);
+    if (!existing) return null;
+
+    return save(
+      { ...seed, scopeId, userId: normalizedUserId },
+      Number.NaN,
+      existing.specialRelation || "",
+      {
+        longTermAffinity: existing.longTermAffinity ?? existing.affinity,
+        shortTermAffinity: existing.shortTermAffinity ?? 0,
+        chatCount: Math.max(0, Number(existing.chatCount || 0)) + 1,
+        lastInteractionAt: new Date(),
+      },
+    );
+  };
+
   return {
     clamp: clampValue,
     save,
@@ -361,6 +393,7 @@ export function createAffinityStore(options: AffinityStoreOptions) {
     ensure,
     ensureForSeed,
     ensureForUser,
+    recordInteraction,
     defaultInitial,
     randomInitial,
     initialRange,

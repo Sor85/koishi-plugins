@@ -17,6 +17,10 @@ export interface ModelResponseProcessorParams {
     ensureForSeed: Parameters<
       typeof applyAffinityDelta
     >[0]["store"]["ensureForSeed"];
+    recordInteraction: (
+      seed: Parameters<typeof applyAffinityDelta>[0]["seed"],
+      userId: string,
+    ) => Promise<unknown>;
     save: (
       seed: Parameters<typeof applyAffinityDelta>[0]["seed"],
       value: number,
@@ -162,6 +166,29 @@ async function initializeAffinityOnFirstReply(
   );
 }
 
+async function recordInteractionFromReply(
+  context: ModelResponseContext,
+  params: Pick<ModelResponseProcessorParams, "config" | "store">,
+): Promise<void> {
+  const session = context.session;
+  if (!session?.userId || !session.selfId) return;
+
+  const platform = String(session.platform || "onebot").trim() || "onebot";
+  const userId = String(session.userId || "").trim();
+  const selfId = String(session.selfId || "").trim();
+  if (!userId || !selfId || userId === selfId) return;
+
+  await params.store.recordInteraction(
+    {
+      scopeId: params.config.scopeId,
+      platform,
+      userId,
+      session: session as never,
+    },
+    userId,
+  );
+}
+
 export function createModelResponseProcessor(
   params: ModelResponseProcessorParams,
 ): (context: ModelResponseContext) => Promise<void> {
@@ -203,6 +230,10 @@ export function createModelResponseProcessor(
         config,
         store,
         log,
+      });
+      await recordInteractionFromReply(context, {
+        config,
+        store,
       });
 
       if (

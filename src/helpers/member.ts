@@ -141,7 +141,7 @@ export function renderInfoField(
       const rawCount = options.chatCount;
       const numeric = Number(rawCount);
       if (!Number.isFinite(numeric)) return null;
-      return `聊天次数:${Math.max(0, Math.round(numeric))}`;
+      return `互动次数:${Math.max(0, Math.round(numeric))}`;
     }
     default:
       return null;
