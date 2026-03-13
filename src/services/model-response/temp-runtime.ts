@@ -5,6 +5,15 @@
 
 import type { LogFn } from "../../types";
 
+interface SessionLike {
+  userId?: string;
+  selfId?: string;
+  platform?: string;
+  guildId?: string;
+  username?: string;
+  bot?: unknown;
+}
+
 interface MessageLike {
   _getType?: () => string;
   type?: string;
@@ -32,6 +41,11 @@ interface Dispatcher {
   processedMessages: WeakSet<object>;
 }
 
+export interface ModelResponseContext {
+  response: string;
+  session: SessionLike | null;
+}
+
 export interface CharacterTempModelResponseRuntime {
   start: () => boolean;
   stop: () => void;
@@ -40,7 +54,7 @@ export interface CharacterTempModelResponseRuntime {
 
 export interface CharacterTempModelResponseRuntimeParams {
   getCharacterService: () => CharacterServiceLike | null | undefined;
-  processModelResponse: (response: string) => Promise<void>;
+  processModelResponse: (context: ModelResponseContext) => Promise<void>;
   log?: LogFn;
   logActivation?: boolean;
 }
@@ -175,18 +189,20 @@ function restoreDispatcher(messages: CompletionMessagesArray): void {
 
 function registerGetTempListener(
   service: CharacterServiceLike,
-  listener: (temp: GroupTempLike) => void,
+  listener: (temp: GroupTempLike, session: SessionLike | null) => void,
 ): (() => void) | null {
   const getTemp = service.getTemp;
   if (typeof getTemp !== "function") return null;
 
   const serviceRecord = service as unknown as Record<symbol, unknown>;
   let listeners = serviceRecord[GET_TEMP_LISTENERS] as
-    | Set<(temp: GroupTempLike) => void>
+    | Set<(temp: GroupTempLike, session: SessionLike | null) => void>
     | undefined;
 
   if (!listeners) {
-    listeners = new Set<(temp: GroupTempLike) => void>();
+    listeners = new Set<
+      (temp: GroupTempLike, session: SessionLike | null) => void
+    >();
     serviceRecord[GET_TEMP_LISTENERS] = listeners;
   }
 
@@ -207,11 +223,15 @@ function registerGetTempListener(
         args,
       )) as GroupTempLike;
       const activeListeners = serviceRecord[GET_TEMP_LISTENERS] as
-        | Set<(temp: GroupTempLike) => void>
+        | Set<(temp: GroupTempLike, session: SessionLike | null) => void>
         | undefined;
+      const session =
+        args[0] && typeof args[0] === "object"
+          ? (args[0] as SessionLike)
+          : null;
       if (temp && activeListeners?.size) {
         for (const handler of Array.from(activeListeners)) {
-          handler(temp);
+          handler(temp, session);
         }
       }
       return temp;
@@ -222,7 +242,7 @@ function registerGetTempListener(
   listeners.add(listener);
   return () => {
     const currentListeners = serviceRecord[GET_TEMP_LISTENERS] as
-      | Set<(temp: GroupTempLike) => void>
+      | Set<(temp: GroupTempLike, session: SessionLike | null) => void>
       | undefined;
     currentListeners?.delete(listener);
     if (currentListeners?.size) return;
@@ -251,23 +271,33 @@ export function createCharacterTempModelResponseRuntime(
     CompletionMessagesArray,
     () => void
   >();
+  const sessionByMessages = new WeakMap<CompletionMessagesArray, SessionLike>();
   const trackedArrays = new Set<CompletionMessagesArray>();
   let restoreGetTemp: (() => void) | null = null;
   let activeService: CharacterServiceLike | null = null;
   let active = false;
 
-  const ensureTempPatched = (temp: GroupTempLike): void => {
+  const ensureTempPatched = (
+    temp: GroupTempLike,
+    session: SessionLike | null,
+  ): void => {
     const messages = temp?.completionMessages;
     if (!Array.isArray(messages) || typeof messages.push !== "function") return;
+    if (session) {
+      sessionByMessages.set(messages, session);
+    }
     if (messageSubscriptions.has(messages)) return;
 
     const dispatcher = attachDispatcher(messages, log);
     const listener = (message: MessageLike) => {
       const response = getResponseText(message);
       if (!response) return;
-      void processModelResponse(response).catch((error) => {
-        log?.("warn", "处理 completionMessages 模型响应失败", error);
-      });
+      const boundSession = sessionByMessages.get(messages) ?? null;
+      void processModelResponse({ response, session: boundSession }).catch(
+        (error) => {
+          log?.("warn", "处理 completionMessages 模型响应失败", error);
+        },
+      );
     };
 
     dispatcher.listeners.add(listener);

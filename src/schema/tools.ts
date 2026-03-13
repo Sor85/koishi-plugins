@@ -10,6 +10,12 @@ export const ScopeSettingsSchema = Schema.object({
     .pattern(/^[A-Za-z0-9_\-\u4e00-\u9fff]{1,32}$/)
     .required()
     .description("作用域标识，只允许中文、英文、数字、_、-，长度 1-32"),
+  affinityInitSelfIds: Schema.array(String)
+    .role("table")
+    .default([])
+    .description(
+      "允许触发首次好感度初始化的 bot selfId 列表；为空时表示当前实例任意 bot 均可触发",
+    ),
 }).description("作用域设置");
 
 export const XmlToolSettingsSchema = Schema.object({

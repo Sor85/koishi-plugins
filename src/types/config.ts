@@ -63,6 +63,7 @@ export interface XmlToolSettings {
 
 export interface Config {
   scopeId: string;
+  affinityInitSelfIds: string[];
   affinityEnabled: boolean;
   affinityDisplayRange: number;
   initialAffinity: number;

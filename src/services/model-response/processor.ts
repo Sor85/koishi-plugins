@@ -3,8 +3,10 @@
  * 负责解析 XML 动作并执行好感度、黑名单、关系与昵称更新
  */
 
-import { applyAffinityDelta } from "../affinity/apply-delta";
+import { collectNicknameCandidates, fetchMember } from "../../helpers";
+import type { ModelResponseContext } from "./temp-runtime";
 import type { Config, LogFn } from "../../types";
+import { applyAffinityDelta } from "../affinity/apply-delta";
 
 export interface ModelResponseProcessorParams {
   config: Config;
@@ -108,9 +110,61 @@ export function resolveXmlScopeId(
   return rawScopeId;
 }
 
+function resolveInitNicknameCandidates(
+  session: {
+    username?: string;
+  } | null,
+): string[] {
+  return session?.username ? [session.username] : [];
+}
+
+async function initializeAffinityOnFirstReply(
+  context: ModelResponseContext,
+  params: Pick<ModelResponseProcessorParams, "config" | "store" | "log">,
+): Promise<void> {
+  const session = context.session;
+  if (!session?.userId || !session.selfId) return;
+
+  const allowedSelfIds = Array.isArray(params.config.affinityInitSelfIds)
+    ? params.config.affinityInitSelfIds
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+    : [];
+  if (allowedSelfIds.length > 0 && !allowedSelfIds.includes(session.selfId)) {
+    return;
+  }
+
+  const platform = String(session.platform || "onebot").trim() || "onebot";
+  const userId = String(session.userId || "").trim();
+  if (!userId || userId === String(session.selfId || "").trim()) return;
+
+  const existing = await params.store.load(params.config.scopeId, userId);
+  if (existing) return;
+
+  const member = await fetchMember(session as never, userId);
+  const nickname =
+    collectNicknameCandidates(
+      member,
+      userId,
+      resolveInitNicknameCandidates(session),
+    )[0] || userId;
+
+  await params.store.ensureForSeed(
+    {
+      scopeId: params.config.scopeId,
+      platform,
+      userId,
+      session: session as never,
+      nickname,
+    },
+    userId,
+    params.store.clamp,
+  );
+}
+
 export function createModelResponseProcessor(
   params: ModelResponseProcessorParams,
-): (response: string) => Promise<void> {
+): (context: ModelResponseContext) => Promise<void> {
   const {
     config,
     cache,
@@ -124,7 +178,8 @@ export function createModelResponseProcessor(
     log,
   } = params;
 
-  return async (response: string): Promise<void> => {
+  return async (context: ModelResponseContext): Promise<void> => {
+    const response = String(context?.response || "").trim();
     if (!response) return;
 
     const affinityTags = parseSelfClosingXmlTags(response, "affinity");
@@ -144,6 +199,12 @@ export function createModelResponseProcessor(
     }
 
     try {
+      await initializeAffinityOnFirstReply(context, {
+        config,
+        store,
+        log,
+      });
+
       if (
         config.affinityEnabled &&
         config.xmlToolSettings.enableAffinityXmlToolCall

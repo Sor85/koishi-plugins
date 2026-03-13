@@ -8,6 +8,24 @@ const assert = require("node:assert/strict");
 
 const { createModelResponseProcessor } = require("../lib/index.js");
 
+function createSession(overrides = {}) {
+  return {
+    userId: "1001",
+    selfId: "bot-a",
+    platform: "onebot",
+    guildId: "2001",
+    username: "会话用户名",
+    bot: {
+      internal: {
+        async getGroupMemberInfo() {
+          return { card: "群名片昵称", nickname: "群昵称" };
+        },
+      },
+    },
+    ...overrides,
+  };
+}
+
 function createConfig(overrides = {}) {
   return {
     scopeId: "宁宁",
@@ -33,6 +51,7 @@ function createConfig(overrides = {}) {
       relationshipLevelVariableName: "relationshipLevel",
       blacklistListVariableName: "blacklistList",
     },
+    affinityInitSelfIds: [],
     xmlToolSettings: {
       enableAffinityXmlToolCall: true,
       enableBlacklistXmlToolCall: true,
@@ -162,12 +181,74 @@ function createProcessorHarness(overrides = {}) {
   return { processor, calls };
 }
 
+test("createModelResponseProcessor 在命中 selfId 且有有效回复时先执行首次初始化并写入 nickname", async () => {
+  const { processor, calls } = createProcessorHarness({
+    config: {
+      affinityInitSelfIds: ["bot-a"],
+    },
+  });
+  const session = createSession();
+
+  await processor({
+    response: "普通回复文本",
+    session,
+  });
+
+  assert.equal(calls.ensureForSeed.length, 1);
+  assert.equal(calls.ensureForSeed[0].seed.scopeId, "宁宁");
+  assert.equal(calls.ensureForSeed[0].seed.platform, "onebot");
+  assert.equal(calls.ensureForSeed[0].seed.userId, "1001");
+  assert.equal(calls.ensureForSeed[0].seed.nickname, "群名片昵称");
+  assert.equal(calls.ensureForSeed[0].seed.session, session);
+  assert.equal(calls.save.length, 0);
+  assert.equal(calls.clear.length, 0);
+});
+
+test("createModelResponseProcessor 在 selfId 不命中时不执行首次初始化", async () => {
+  const { processor, calls } = createProcessorHarness({
+    config: {
+      affinityInitSelfIds: ["bot-b"],
+    },
+  });
+
+  await processor({
+    response: "普通回复文本",
+    session: createSession({ selfId: "bot-a" }),
+  });
+
+  assert.equal(calls.ensureForSeed.length, 0);
+});
+
+test("createModelResponseProcessor 在已有记录时不重复首次初始化", async () => {
+  const { processor, calls } = createProcessorHarness({
+    config: {
+      affinityInitSelfIds: ["bot-a"],
+    },
+    loadResult: {
+      affinity: 30,
+      longTermAffinity: 30,
+      nickname: "已有昵称",
+      specialRelation: null,
+    },
+  });
+
+  await processor({
+    response: "普通回复文本",
+    session: createSession(),
+  });
+
+  assert.equal(calls.ensureForSeed.length, 0);
+  assert.equal(calls.load.length, 1);
+  assert.deepEqual(calls.load[0], { scopeId: "宁宁", userId: "1001" });
+});
 test("createModelResponseProcessor 处理合法 affinity increase 并清理缓存", async () => {
   const { processor, calls } = createProcessorHarness();
 
-  await processor(
-    '<affinity scopeId="宁宁" userId="1001" action="increase" delta="2" />',
-  );
+  await processor({
+    response:
+      '<affinity scopeId="宁宁" userId="1001" action="increase" delta="2" />',
+    session: null,
+  });
 
   assert.equal(calls.ensureForSeed.length, 1);
   assert.equal(calls.save.length, 1);
@@ -183,9 +264,11 @@ test("createModelResponseProcessor 处理合法 affinity increase 并清理缓�
 test("createModelResponseProcessor 处理 affinity set 时直接写入 value", async () => {
   const { processor, calls } = createProcessorHarness();
 
-  await processor(
-    '<affinity scopeId="宁宁" userId="1001" action="set" value="66" />',
-  );
+  await processor({
+    response:
+      '<affinity scopeId="宁宁" userId="1001" action="set" value="66" />',
+    session: null,
+  });
 
   assert.equal(calls.ensureForSeed.length, 0);
   assert.equal(calls.save.length, 1);
@@ -196,9 +279,11 @@ test("createModelResponseProcessor 处理 affinity set 时直接写入 value", a
 test("createModelResponseProcessor 忽略 scopeId 不匹配的 affinity XML", async () => {
   const { processor, calls } = createProcessorHarness();
 
-  await processor(
-    '<affinity scopeId="别的实例" userId="1001" action="increase" delta="2" />',
-  );
+  await processor({
+    response:
+      '<affinity scopeId="别的实例" userId="1001" action="increase" delta="2" />',
+    session: null,
+  });
 
   assert.equal(calls.ensureForSeed.length, 0);
   assert.equal(calls.save.length, 0);
@@ -208,9 +293,11 @@ test("createModelResponseProcessor 忽略 scopeId 不匹配的 affinity XML", as
 test("createModelResponseProcessor 忽略非法 delta 的 affinity XML", async () => {
   const { processor, calls } = createProcessorHarness();
 
-  await processor(
-    '<affinity scopeId="宁宁" userId="1001" action="increase" delta="0" />',
-  );
+  await processor({
+    response:
+      '<affinity scopeId="宁宁" userId="1001" action="increase" delta="0" />',
+    session: null,
+  });
 
   assert.equal(calls.ensureForSeed.length, 0);
   assert.equal(calls.save.length, 0);
@@ -227,9 +314,11 @@ test("createModelResponseProcessor 处理临时黑名单并按惩罚扣减 affin
     },
   });
 
-  await processor(
-    '<blacklist scopeId="宁宁" userId="1001" action="add" mode="temporary" durationHours="12" note="xml" />',
-  );
+  await processor({
+    response:
+      '<blacklist scopeId="宁宁" userId="1001" action="add" mode="temporary" durationHours="12" note="xml" />',
+    session: null,
+  });
 
   assert.equal(calls.recordTemporary.length, 1);
   assert.deepEqual(calls.recordTemporary[0], {
@@ -248,9 +337,11 @@ test("createModelResponseProcessor 处理临时黑名单并按惩罚扣减 affin
 test("createModelResponseProcessor 处理永久黑名单移除", async () => {
   const { processor, calls } = createProcessorHarness();
 
-  await processor(
-    '<blacklist scopeId="宁宁" userId="1001" action="remove" mode="permanent" />',
-  );
+  await processor({
+    response:
+      '<blacklist scopeId="宁宁" userId="1001" action="remove" mode="permanent" />',
+    session: null,
+  });
 
   assert.equal(calls.unblockPermanent.length, 1);
   assert.deepEqual(calls.unblockPermanent[0], {
@@ -265,9 +356,11 @@ test("createModelResponseProcessor 处理永久黑名单移除", async () => {
 test("createModelResponseProcessor 处理 userAlias 与 relationship 混合 XML", async () => {
   const { processor, calls } = createProcessorHarness();
 
-  await processor(
-    '<userAlias scopeId="宁宁" userId="1001" name="小明同学" /><relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
-  );
+  await processor({
+    response:
+      '<userAlias scopeId="宁宁" userId="1001" name="小明同学" /><relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
+    session: null,
+  });
 
   assert.equal(calls.setAlias.length, 1);
   assert.deepEqual(calls.setAlias[0], {
@@ -288,9 +381,11 @@ test("createModelResponseProcessor 在依赖抛错时记录 warn", async () => {
     },
   });
 
-  await processor(
-    '<relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
-  );
+  await processor({
+    response:
+      '<relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
+    session: null,
+  });
 
   assert.equal(calls.log.length, 1);
   assert.equal(calls.log[0].level, "warn");

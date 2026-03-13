@@ -30,8 +30,8 @@ function createRuntimeHarness() {
 
   const runtime = createCharacterTempModelResponseRuntime({
     getCharacterService: () => service,
-    async processModelResponse(response) {
-      calls.process.push(response);
+    async processModelResponse(context) {
+      calls.process.push(context);
     },
     log(level, message, detail) {
       calls.log.push({ level, message, detail });
@@ -105,11 +105,12 @@ test("createCharacterTempModelResponseRuntime 在 getTemp 不可用时返回 fal
   );
 });
 
-test("createCharacterTempModelResponseRuntime 在 AI 消息写入时转发响应文本", async () => {
+test("createCharacterTempModelResponseRuntime 在 AI 消息写入时转发响应文本与 session", async () => {
   const { runtime, service, calls } = createRuntimeHarness();
+  const session = { userId: "1001", selfId: "bot-a" };
 
   runtime.start();
-  const temp = await service.getTemp("session");
+  const temp = await service.getTemp(session);
   temp.completionMessages.push({
     role: "assistant",
     content: [
@@ -121,7 +122,32 @@ test("createCharacterTempModelResponseRuntime 在 AI 消息写入时转发响应
   await flush();
 
   assert.deepEqual(calls.process, [
-    '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
+    {
+      response:
+        '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
+      session,
+    },
+  ]);
+});
+
+test("createCharacterTempModelResponseRuntime 在未传 session 时也转发响应文本", async () => {
+  const { runtime, service, calls } = createRuntimeHarness();
+
+  runtime.start();
+  const temp = await service.getTemp();
+  temp.completionMessages.push({
+    role: "assistant",
+    content:
+      '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
+  });
+  await flush();
+
+  assert.deepEqual(calls.process, [
+    {
+      response:
+        '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
+      session: null,
+    },
   ]);
 });
 
@@ -142,9 +168,10 @@ test("createCharacterTempModelResponseRuntime 忽略非 AI 消息", async () => 
 
 test("createCharacterTempModelResponseRuntime 对同一消息对象只处理一次", async () => {
   const { runtime, service, calls } = createRuntimeHarness();
+  const session = { id: "session" };
 
   runtime.start();
-  const temp = await service.getTemp("session");
+  const temp = await service.getTemp(session);
   const message = {
     role: "assistant",
     content:
@@ -156,10 +183,11 @@ test("createCharacterTempModelResponseRuntime 对同一消息对象只处理一�
   await flush();
 
   assert.equal(calls.process.length, 1);
-  assert.equal(
-    calls.process[0],
-    '<relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
-  );
+  assert.deepEqual(calls.process[0], {
+    response:
+      '<relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
+    session,
+  });
 });
 
 test("createCharacterTempModelResponseRuntime stop 后恢复原始 push 并停止分发", async () => {
@@ -195,14 +223,14 @@ test("createCharacterTempModelResponseRuntime 支持多个 runtime 共享同一 
 
   const runtimeA = createCharacterTempModelResponseRuntime({
     getCharacterService: () => service,
-    async processModelResponse(response) {
-      seenA.push(response);
+    async processModelResponse(context) {
+      seenA.push(context);
     },
   });
   const runtimeB = createCharacterTempModelResponseRuntime({
     getCharacterService: () => service,
-    async processModelResponse(response) {
-      seenB.push(response);
+    async processModelResponse(context) {
+      seenB.push(context);
     },
   });
 
@@ -239,6 +267,7 @@ test("createCharacterTempModelResponseRuntime 在处理器报错时记录 warn �
   const processCalls = [];
   const logCalls = [];
   let shouldFail = true;
+  const session = { id: "session" };
   const service = {
     async getTemp() {
       return temp;
@@ -247,8 +276,8 @@ test("createCharacterTempModelResponseRuntime 在处理器报错时记录 warn �
 
   const runtime = createCharacterTempModelResponseRuntime({
     getCharacterService: () => service,
-    async processModelResponse(response) {
-      processCalls.push(response);
+    async processModelResponse(context) {
+      processCalls.push(context);
       if (shouldFail) {
         shouldFail = false;
         throw new Error("boom");
@@ -260,7 +289,7 @@ test("createCharacterTempModelResponseRuntime 在处理器报错时记录 warn �
   });
 
   runtime.start();
-  await service.getTemp("session");
+  await service.getTemp(session);
 
   temp.completionMessages.push({
     role: "assistant",
@@ -275,8 +304,15 @@ test("createCharacterTempModelResponseRuntime 在处理器报错时记录 warn �
   await flush();
 
   assert.deepEqual(processCalls, [
-    '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
-    '<relationship scopeId="宁宁" userId="1001" action="clear" />',
+    {
+      response:
+        '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
+      session,
+    },
+    {
+      response: '<relationship scopeId="宁宁" userId="1001" action="clear" />',
+      session,
+    },
   ]);
   assert.equal(logCalls.length, 1);
   assert.equal(logCalls[0].level, "warn");
@@ -300,15 +336,17 @@ test("createCharacterTempModelResponseRuntime 在 character 服务实例被替�
 
   let currentService = serviceA;
   const processCalls = [];
+  const beforeSession = { id: "before-reload" };
+  const afterSession = { id: "after-reload" };
   const runtime = createCharacterTempModelResponseRuntime({
     getCharacterService: () => currentService,
-    async processModelResponse(response) {
-      processCalls.push(response);
+    async processModelResponse(context) {
+      processCalls.push(context);
     },
   });
 
   assert.equal(runtime.start(), true);
-  await serviceA.getTemp("before-reload");
+  await serviceA.getTemp(beforeSession);
 
   tempA.completionMessages.push({
     role: "assistant",
@@ -319,7 +357,7 @@ test("createCharacterTempModelResponseRuntime 在 character 服务实例被替�
 
   currentService = serviceB;
   assert.equal(runtime.start(), true);
-  await serviceB.getTemp("after-reload");
+  await serviceB.getTemp(afterSession);
 
   tempB.completionMessages.push({
     role: "assistant",
@@ -329,7 +367,15 @@ test("createCharacterTempModelResponseRuntime 在 character 服务实例被替�
   await flush();
 
   assert.deepEqual(processCalls, [
-    '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
-    '<affinity scopeId="宁宁" userId="1001" action="increase" delta="2" />',
+    {
+      response:
+        '<affinity scopeId="宁宁" userId="1001" action="increase" delta="1" />',
+      session: beforeSession,
+    },
+    {
+      response:
+        '<affinity scopeId="宁宁" userId="1001" action="increase" delta="2" />',
+      session: afterSession,
+    },
   ]);
 });
