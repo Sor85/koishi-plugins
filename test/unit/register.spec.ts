@@ -2211,6 +2211,78 @@ describe("registerCommands", () => {
     expect(generateMock).not.toHaveBeenCalled();
   });
 
+  it("meme.list 在单图模板类别排除下应过滤大小写不同的模板 key", async () => {
+    const commandActions = new Map<
+      string,
+      (...args: any[]) => Promise<unknown>
+    >();
+    const { ctx, readyHandlers } = createMockContext();
+    ctx.command = vi.fn((name: string) => ({
+      action: vi.fn((handler: (...args: any[]) => Promise<unknown>) => {
+        commandActions.set(name, handler);
+        return { action: vi.fn() };
+      }),
+    }));
+
+    getKeysMock.mockResolvedValue(["what_I_want_to_do", "safe_text"]);
+    getInfoMock.mockImplementation(async (key: string) => {
+      if (key === "what_I_want_to_do") {
+        return {
+          key,
+          params_type: {
+            min_images: 1,
+            max_images: 1,
+            min_texts: 0,
+            max_texts: 0,
+            default_texts: [],
+          },
+          keywords: ["大写单图模板"],
+          shortcuts: [],
+          tags: [],
+          date_created: "2026-01-01T00:00:00",
+          date_modified: "2026-01-01T00:00:00",
+        };
+      }
+      if (key === "safe_text") {
+        return {
+          key,
+          params_type: {
+            min_images: 0,
+            max_images: 0,
+            min_texts: 1,
+            max_texts: 1,
+            default_texts: [],
+          },
+          keywords: ["保留文本模板"],
+          shortcuts: [],
+          tags: [],
+          date_created: "2026-01-01T00:00:00",
+          date_modified: "2026-01-01T00:00:00",
+        };
+      }
+      throw new Error(`unexpected key: ${key}`);
+    });
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        enableDirectAliasWithoutPrefix: false,
+        excludeSingleImageOnlyMemes: true,
+      }),
+    );
+    await flushReadyHandlers(readyHandlers);
+
+    const listAction = commandActions.get("meme.list");
+
+    expect(listAction).toBeDefined();
+
+    const result = await listAction!({ session: createSession("meme.list") });
+
+    expect(result).toContain("保留文本模板");
+    expect(result).not.toContain("大写单图模板");
+    expect(result).not.toContain("what_I_want_to_do");
+  });
+
   it("排除其他模板时应过滤 meme.list 并拦截显式访问", async () => {
     const commandActions = new Map<
       string,

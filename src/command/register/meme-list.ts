@@ -7,6 +7,7 @@ import { h, type Context } from "koishi";
 import type { Config } from "../../config";
 import { MemeBackendClient } from "../../infra/client";
 import type { MemeInfoResponse } from "../../types";
+import { normalizeMemeKey } from "./exclusion";
 import {
   type ContextWithOptionalServices,
   MEME_LIST_CATEGORY_LABEL,
@@ -84,7 +85,7 @@ export async function buildCategoryExcludedMemeKeySet(
           result.info &&
           isParamsTypeExcludedByConfig(result.info.params_type, config),
       )
-      .map((result) => result.key),
+      .map((result) => normalizeMemeKey(result.key)),
   );
 }
 
