@@ -9,22 +9,24 @@ import type { Context } from "koishi";
 import type { LogFn } from "../../../types";
 import { ensureOneBotSession, callOneBotAPI } from "../onebot-api";
 import { getSession } from "../session";
+import { DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION } from "../defaults";
 
 export interface SetGroupCardToolDeps {
   ctx: Context;
   toolName: string;
+  description: string;
   log?: LogFn;
 }
 
 export function createSetGroupCardTool(
   deps: SetGroupCardToolDeps,
 ): StructuredTool {
-  const { toolName, log } = deps;
+  const { toolName, description, log } = deps;
 
   // @ts-ignore
   return new (class extends StructuredTool {
     name = toolName || "set_group_card";
-    description = "Update a group member nickname (group card).";
+    description = description || DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION;
     schema = z.object({
       groupId: z
         .string()

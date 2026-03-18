@@ -10,10 +10,12 @@ import type { LogFn } from "../../../types";
 import { ensureOneBotSession } from "../onebot-api";
 import type { OneBotProtocol } from "../../../types";
 import { getSession } from "../session";
+import { DEFAULT_POKE_TOOL_DESCRIPTION } from "../defaults";
 
 export interface PokeToolDeps {
   ctx: Context;
   toolName: string;
+  description: string;
   protocol: OneBotProtocol;
   log?: LogFn;
 }
@@ -82,13 +84,12 @@ export async function sendPoke(params: SendPokeParams): Promise<string> {
 }
 
 export function createPokeTool(deps: PokeToolDeps): StructuredTool {
-  const { toolName, log, protocol } = deps;
+  const { toolName, description, log, protocol } = deps;
 
   // @ts-ignore
   return new (class extends StructuredTool {
     name = toolName || "poke_user";
-    description =
-      "Poke (nudge) a specified user in a group or private conversation.";
+    description = description || DEFAULT_POKE_TOOL_DESCRIPTION;
     schema = z.object({
       userId: z
         .string()

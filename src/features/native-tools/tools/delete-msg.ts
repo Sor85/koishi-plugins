@@ -9,9 +9,11 @@ import type { Session } from "koishi";
 import type { LogFn } from "../../../types";
 import { ensureOneBotSession, callOneBotAPI } from "../onebot-api";
 import { getSession } from "../session";
+import { DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION } from "../defaults";
 
 export interface DeleteMessageToolDeps {
   toolName: string;
+  description: string;
   log?: LogFn;
 }
 
@@ -72,11 +74,11 @@ export async function sendDeleteMessage(
 }
 
 export function createDeleteMessageTool(deps: DeleteMessageToolDeps) {
-  const { toolName, log } = deps;
+  const { toolName, description, log } = deps;
 
   const tool = {
     name: toolName || "delete_msg",
-    description: "Deletes (recalls) a message by messageId only.",
+    description: description || DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
     schema: z.object({
       messageId: z
         .string()

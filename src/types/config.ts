@@ -8,6 +8,7 @@ export type OneBotProtocol = "napcat" | "llbot";
 export interface NativeToolItemConfig {
   enabled: boolean;
   toolName: string;
+  description: string;
 }
 
 export interface NativeToolsConfig {

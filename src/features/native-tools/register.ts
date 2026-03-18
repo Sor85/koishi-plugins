@@ -5,6 +5,13 @@
 
 import type { Session } from "koishi";
 import type { Config, LogFn, OneBotProtocol } from "../../types";
+import {
+  DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
+  DEFAULT_POKE_TOOL_DESCRIPTION,
+  DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
+  DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
+  DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
+} from "./defaults";
 import { createDeleteMessageTool } from "./tools/delete-msg";
 import { createPokeTool } from "./tools/poke";
 import { createSetGroupCardTool } from "./tools/set-group-card";
@@ -32,6 +39,11 @@ function resolveToolName(value: string, fallback: string): string {
   return trimmedValue || fallback;
 }
 
+function resolveToolDescription(value: string, fallback: string): string {
+  const trimmedValue = value.trim();
+  return trimmedValue || fallback;
+}
+
 export function resolveOneBotProtocol(
   config: Config,
   log?: LogFn,
@@ -51,10 +63,15 @@ export function registerNativeTools(deps: RegisterNativeToolsDeps): void {
 
   if (config.poke.enabled) {
     const toolName = resolveToolName(config.poke.toolName, "poke_user");
+    const description = resolveToolDescription(
+      config.poke.description,
+      DEFAULT_POKE_TOOL_DESCRIPTION,
+    );
     plugin.registerTool(toolName, {
       selector: () => true,
       authorization: (session: Session) => session?.platform === "onebot",
-      createTool: () => createPokeTool({ ctx, toolName, log, protocol }),
+      createTool: () =>
+        createPokeTool({ ctx, toolName, description, log, protocol }),
     });
     log?.("info", `戳一戳工具已注册: ${toolName}`);
   }
@@ -64,10 +81,15 @@ export function registerNativeTools(deps: RegisterNativeToolsDeps): void {
       config.setSelfProfile.toolName,
       "set_self_profile",
     );
+    const description = resolveToolDescription(
+      config.setSelfProfile.description,
+      DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
+    );
     plugin.registerTool(toolName, {
       selector: () => true,
       authorization: (session: Session) => session?.platform === "onebot",
-      createTool: () => createSetProfileTool({ ctx, toolName, log, protocol }),
+      createTool: () =>
+        createSetProfileTool({ ctx, toolName, description, log, protocol }),
     });
     log?.("info", `设置资料工具已注册: ${toolName}`);
   }
@@ -77,10 +99,15 @@ export function registerNativeTools(deps: RegisterNativeToolsDeps): void {
       config.setGroupCard.toolName,
       "set_group_card",
     );
+    const description = resolveToolDescription(
+      config.setGroupCard.description,
+      DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
+    );
     plugin.registerTool(toolName, {
       selector: () => true,
       authorization: (session: Session) => session?.platform === "onebot",
-      createTool: () => createSetGroupCardTool({ ctx, toolName, log }),
+      createTool: () =>
+        createSetGroupCardTool({ ctx, toolName, description, log }),
     });
     log?.("info", `群昵称工具已注册: ${toolName}`);
   }
@@ -90,10 +117,15 @@ export function registerNativeTools(deps: RegisterNativeToolsDeps): void {
       config.setMsgEmoji.toolName,
       "set_msg_emoji",
     );
+    const description = resolveToolDescription(
+      config.setMsgEmoji.description,
+      DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
+    );
     plugin.registerTool(toolName, {
       selector: () => true,
       authorization: (session: Session) => session?.platform === "onebot",
-      createTool: () => createSetMsgEmojiTool({ toolName, log, protocol }),
+      createTool: () =>
+        createSetMsgEmojiTool({ toolName, description, log, protocol }),
     });
     log?.("info", `消息表情工具已注册: ${toolName}`);
   }
@@ -103,10 +135,14 @@ export function registerNativeTools(deps: RegisterNativeToolsDeps): void {
       config.deleteMessage.toolName,
       "delete_msg",
     );
+    const description = resolveToolDescription(
+      config.deleteMessage.description,
+      DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
+    );
     plugin.registerTool(toolName, {
       selector: () => true,
       authorization: (session: Session) => session?.platform === "onebot",
-      createTool: () => createDeleteMessageTool({ toolName, log }),
+      createTool: () => createDeleteMessageTool({ toolName, description, log }),
     });
     log?.("info", `删除消息工具已注册: ${toolName}`);
   }

@@ -10,9 +10,11 @@ import type { LogFn } from "../../../types";
 import { ensureOneBotSession, callOneBotAPI } from "../onebot-api";
 import type { OneBotProtocol } from "../../../types";
 import { getSession } from "../session";
+import { DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION } from "../defaults";
 
 export interface SetMsgEmojiToolDeps {
   toolName: string;
+  description: string;
   protocol: OneBotProtocol;
   log?: LogFn;
 }
@@ -69,12 +71,12 @@ export async function sendMsgEmoji(
 export function createSetMsgEmojiTool(
   deps: SetMsgEmojiToolDeps,
 ): StructuredTool {
-  const { toolName, log, protocol } = deps;
+  const { toolName, description, log, protocol } = deps;
 
   // @ts-ignore
   return new (class extends StructuredTool {
     name = toolName || "set_msg_emoji";
-    description = "React to a message with an emoji by messageId.";
+    description = description || DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION;
     schema = z.object({
       messageId: z
         .string()

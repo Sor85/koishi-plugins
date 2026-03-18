@@ -10,10 +10,12 @@ import type { LogFn } from "../../../types";
 import { ensureOneBotSession, callOneBotAPI } from "../onebot-api";
 import type { OneBotProtocol } from "../../../types";
 import { getSession } from "../session";
+import { DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION } from "../defaults";
 
 export interface ProfileToolDeps {
   ctx: Context;
   toolName: string;
+  description: string;
   protocol: OneBotProtocol;
   log?: LogFn;
 }
@@ -25,13 +27,13 @@ const genders: Record<string, string> = {
 };
 
 export function createSetProfileTool(deps: ProfileToolDeps): StructuredTool {
-  const { toolName, log, protocol } = deps;
+  const { toolName, description, log, protocol } = deps;
 
   // @ts-ignore
   return new (class extends StructuredTool {
     name = toolName || "set_self_profile";
     description =
-      "Update the bot's own QQ profile (nickname, signature, gender).";
+      description || DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION;
     schema = z.object({
       nickname: z
         .string()

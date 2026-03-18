@@ -6,16 +6,43 @@
 import { describe, expect, it, vi } from "vitest";
 import { registerNativeTools, resolveOneBotProtocol } from "./register";
 import type { Config } from "../../types";
+import {
+  DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
+  DEFAULT_POKE_TOOL_DESCRIPTION,
+  DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
+  DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
+  DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
+} from "./defaults";
 
 function createConfig(overrides: Partial<Config> = {}): Config {
   return {
     enableNapCatProtocol: true,
     enableLlbotProtocol: false,
-    poke: { enabled: false, toolName: "poke_user" },
-    setSelfProfile: { enabled: false, toolName: "set_self_profile" },
-    setGroupCard: { enabled: false, toolName: "set_group_card" },
-    setMsgEmoji: { enabled: false, toolName: "set_msg_emoji" },
-    deleteMessage: { enabled: false, toolName: "delete_msg" },
+    poke: {
+      enabled: false,
+      toolName: "poke_user",
+      description: DEFAULT_POKE_TOOL_DESCRIPTION,
+    },
+    setSelfProfile: {
+      enabled: false,
+      toolName: "set_self_profile",
+      description: DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
+    },
+    setGroupCard: {
+      enabled: false,
+      toolName: "set_group_card",
+      description: DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
+    },
+    setMsgEmoji: {
+      enabled: false,
+      toolName: "set_msg_emoji",
+      description: DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
+    },
+    deleteMessage: {
+      enabled: false,
+      toolName: "delete_msg",
+      description: DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
+    },
     enablePokeXmlTool: false,
     enableEmojiXmlTool: false,
     enableDeleteXmlTool: false,
@@ -53,8 +80,16 @@ describe("registerNativeTools", () => {
   it("按嵌套配置注册启用的原生工具", () => {
     const registerTool = vi.fn();
     const config = createConfig({
-      poke: { enabled: true, toolName: "custom_poke" },
-      setMsgEmoji: { enabled: true, toolName: "custom_emoji" },
+      poke: {
+        enabled: true,
+        toolName: "custom_poke",
+        description: "custom poke description",
+      },
+      setMsgEmoji: {
+        enabled: true,
+        toolName: "custom_emoji",
+        description: "custom emoji description",
+      },
     });
 
     registerNativeTools({
@@ -85,10 +120,37 @@ describe("registerNativeTools", () => {
     );
   });
 
+  it("将自定义描述注入最终工具对象", () => {
+    const registerTool = vi.fn();
+    const config = createConfig({
+      poke: {
+        enabled: true,
+        toolName: "custom_poke",
+        description: "poke custom description",
+      },
+    });
+
+    registerNativeTools({
+      ctx: {} as never,
+      config,
+      plugin: { registerTool },
+      protocol: "napcat",
+    });
+
+    const registration = registerTool.mock.calls[0][1];
+    const tool = registration.createTool();
+
+    expect(tool.description).toBe("poke custom description");
+  });
+
   it("在工具名为空白时回退到默认名称", () => {
     const registerTool = vi.fn();
     const config = createConfig({
-      poke: { enabled: true, toolName: "   " },
+      poke: {
+        enabled: true,
+        toolName: "   ",
+        description: DEFAULT_POKE_TOOL_DESCRIPTION,
+      },
     });
 
     registerNativeTools({
@@ -107,6 +169,29 @@ describe("registerNativeTools", () => {
         createTool: expect.any(Function),
       }),
     );
+  });
+
+  it("在描述为空白时回退到默认描述", () => {
+    const registerTool = vi.fn();
+    const config = createConfig({
+      setMsgEmoji: {
+        enabled: true,
+        toolName: "set_msg_emoji",
+        description: "   ",
+      },
+    });
+
+    registerNativeTools({
+      ctx: {} as never,
+      config,
+      plugin: { registerTool },
+      protocol: "napcat",
+    });
+
+    const registration = registerTool.mock.calls[0][1];
+    const tool = registration.createTool();
+
+    expect(tool.description).toBe(DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION);
   });
 
   it("忽略未启用的原生工具", () => {
