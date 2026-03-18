@@ -6,12 +6,6 @@
 import { Schema } from "koishi";
 
 export const NativeToolsSchema = Schema.object({
-  enableNapCatProtocol: Schema.boolean()
-    .default(true)
-    .description("启用 NapCat OneBot 协议（与 LLBot 二选一）"),
-  enableLlbotProtocol: Schema.boolean()
-    .default(false)
-    .description("启用 LLBot OneBot 协议（与 NapCat 二选一）"),
   poke: Schema.object({
     enabled: Schema.boolean()
       .default(false)
@@ -68,8 +62,6 @@ export const NativeToolsSchema = Schema.object({
     .collapse(),
 })
   .default({
-    enableNapCatProtocol: true,
-    enableLlbotProtocol: false,
     poke: { enabled: false, toolName: "poke_user" },
     setSelfProfile: { enabled: false, toolName: "set_self_profile" },
     setGroupCard: { enabled: false, toolName: "set_group_card" },
