@@ -57,18 +57,22 @@ const AffinityDynamicsSchema = Schema.object({
     maxDrop: Schema.number()
       .default(AFFINITY_DYNAMICS_DEFAULTS.coefficient.maxDrop)
       .min(0)
+      .step(0.1)
       .description("在长期冷淡或负向互动占优时，系数最多可下调的幅度"),
     maxBoost: Schema.number()
       .default(AFFINITY_DYNAMICS_DEFAULTS.coefficient.maxBoost)
       .min(0)
+      .step(0.1)
       .description("在持续互动且正向互动占优时，系数最多可上调的幅度"),
     decayPerDay: Schema.number()
       .default(AFFINITY_DYNAMICS_DEFAULTS.coefficient.decayPerDay)
       .min(0)
+      .step(0.05)
       .description("每经过一天冷淡期或负向占优期时，系数的下调幅度"),
     boostPerDay: Schema.number()
       .default(AFFINITY_DYNAMICS_DEFAULTS.coefficient.boostPerDay)
       .min(0)
+      .step(0.05)
       .description("每经过一天稳定互动且正向占优时，系数的上调幅度"),
   })
     .description("好感度变化系数")
