@@ -5,7 +5,12 @@
 
 import { Schema } from "koishi";
 import { DEFAULT_SCHEDULE_PROMPT } from "./constants";
-import type { Config, VariablesConfig, WeatherConfig } from "./types";
+import type {
+  Config,
+  ToolsConfig,
+  VariablesConfig,
+  WeatherConfig,
+} from "./types";
 
 export const name = "chatluna-schedule";
 
@@ -24,18 +29,12 @@ export const DEFAULT_SCHEDULE_CONFIG = {
   prompt: DEFAULT_SCHEDULE_PROMPT,
   renderAsImage: false,
   startDelay: 3000,
-  registerTool: true,
-  toolName: "daily_schedule",
-  toolDescription: "获取今日日程文本内容。",
 };
 
 export const DEFAULT_WEATHER_CONFIG: WeatherConfig = {
   enabled: false,
   cityName: "",
   hourlyRefresh: false,
-  registerTool: false,
-  toolName: "get_weather",
-  toolDescription: "获取当前天气信息，可返回详细文本或当前时段天气。",
 };
 
 export const DEFAULT_VARIABLES_CONFIG: VariablesConfig = {
@@ -44,6 +43,19 @@ export const DEFAULT_VARIABLES_CONFIG: VariablesConfig = {
   outfit: "outfit",
   currentOutfit: "currentOutfit",
   weather: "weather",
+};
+
+export const DEFAULT_TOOLS_CONFIG: ToolsConfig = {
+  schedule: {
+    register: false,
+    name: "daily_schedule",
+    description: "获取今日日程文本内容。",
+  },
+  weather: {
+    register: false,
+    name: "get_weather",
+    description: "获取当前天气信息，可返回详细文本或当前时段天气。",
+  },
 };
 
 const scheduleSchema = Schema.object({
@@ -90,15 +102,6 @@ const scheduleSchema = Schema.object({
   startDelay: Schema.number()
     .default(DEFAULT_SCHEDULE_CONFIG.startDelay)
     .description("启动延迟（毫秒），等待 ChatLuna 加载完成"),
-  registerTool: Schema.boolean()
-    .default(DEFAULT_SCHEDULE_CONFIG.registerTool)
-    .description("注册 ChatLuna 工具：获取今日日程"),
-  toolName: Schema.string()
-    .default(DEFAULT_SCHEDULE_CONFIG.toolName)
-    .description("工具名称"),
-  toolDescription: Schema.string()
-    .default(DEFAULT_SCHEDULE_CONFIG.toolDescription)
-    .description("工具描述"),
 });
 
 const weatherSchema = Schema.object({
@@ -111,16 +114,36 @@ const weatherSchema = Schema.object({
   hourlyRefresh: Schema.boolean()
     .default(DEFAULT_WEATHER_CONFIG.hourlyRefresh)
     .description("每小时刷新天气数据（关闭则每天刷新一次）"),
-  registerTool: Schema.boolean()
-    .default(DEFAULT_WEATHER_CONFIG.registerTool || false)
-    .description("注册 ChatLuna 工具：获取天气"),
-  toolName: Schema.string()
-    .default(DEFAULT_WEATHER_CONFIG.toolName || "get_weather")
-    .description("工具名称"),
-  toolDescription: Schema.string()
-    .default(DEFAULT_WEATHER_CONFIG.toolDescription)
-    .description("工具描述"),
 });
+
+const toolsSchema = Schema.object({
+  schedule: Schema.object({
+    register: Schema.boolean()
+      .default(DEFAULT_TOOLS_CONFIG.schedule.register)
+      .description("注册 ChatLuna 工具：获取今日日程"),
+    name: Schema.string()
+      .default(DEFAULT_TOOLS_CONFIG.schedule.name)
+      .description("工具名称"),
+    description: Schema.string()
+      .default(DEFAULT_TOOLS_CONFIG.schedule.description)
+      .description("工具描述"),
+  })
+    .description("配置日程工具")
+    .collapse(),
+  weather: Schema.object({
+    register: Schema.boolean()
+      .default(DEFAULT_TOOLS_CONFIG.weather.register)
+      .description("注册 ChatLuna 工具：获取天气"),
+    name: Schema.string()
+      .default(DEFAULT_TOOLS_CONFIG.weather.name)
+      .description("工具名称"),
+    description: Schema.string()
+      .default(DEFAULT_TOOLS_CONFIG.weather.description)
+      .description("工具描述"),
+  })
+    .description("配置天气工具")
+    .collapse(),
+}).description("工具调用");
 
 const variablesSchema = Schema.object({
   schedule: Schema.string()
@@ -153,6 +176,7 @@ export const ConfigSchema: Schema<Config> = Schema.intersect([
       .default(DEFAULT_WEATHER_CONFIG)
       .description("天气设置"),
     variables: variablesSchema,
+    tools: toolsSchema,
   }),
   otherSchema,
 ]) as Schema<Config>;

@@ -13,6 +13,17 @@ export type LogFn = (
   detail?: unknown,
 ) => void;
 
+export interface ToolItemConfig {
+  register: boolean;
+  name: string;
+  description: string;
+}
+
+export interface ToolsConfig {
+  schedule: ToolItemConfig;
+  weather: ToolItemConfig;
+}
+
 export interface ScheduleConfig {
   enabled: boolean;
   model?: string;
@@ -20,22 +31,22 @@ export interface ScheduleConfig {
   personaChatlunaPreset?: string;
   personaCustomPreset?: string;
   timezone: string;
-  registerTool: boolean;
   renderAsImage: boolean;
   startDelay: number;
-  toolName: string;
-  toolDescription: string;
   prompt: string;
   title?: string;
+  registerTool?: boolean;
+  toolName?: string;
+  toolDescription?: string;
 }
 
 export interface WeatherConfig {
   enabled: boolean;
   cityName: string;
   hourlyRefresh: boolean;
-  registerTool: boolean;
-  toolName: string;
-  toolDescription: string;
+  registerTool?: boolean;
+  toolName?: string;
+  toolDescription?: string;
 }
 
 export interface VariablesConfig {
@@ -51,6 +62,7 @@ export interface Config {
   schedule: ScheduleConfig;
   weather: WeatherConfig;
   variables?: VariablesConfig;
+  tools?: ToolsConfig;
 }
 
 export interface ScheduleEntry {

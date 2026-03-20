@@ -6,8 +6,7 @@
 import { StructuredTool } from "@langchain/core/tools";
 import { h, type Context, type Session } from "koishi";
 import { z } from "zod";
-import { resolveVariablesConfig } from "../config";
-import { DEFAULT_SCHEDULE_CONFIG } from "../schema";
+import { resolveToolsConfig, resolveVariablesConfig } from "../config";
 import type {
   ChatLunaPlugin,
   Config,
@@ -188,15 +187,13 @@ export function createScheduleService(
   const scheduleConfig: ScheduleConfig = config.schedule || {
     enabled: true,
     timezone: "Asia/Shanghai",
-    registerTool: true,
     renderAsImage: false,
     startDelay: 3000,
-    toolName: "daily_schedule",
-    toolDescription: DEFAULT_SCHEDULE_CONFIG.toolDescription,
     prompt: "",
   };
 
   const variableConfig = resolveVariablesConfig(config);
+  const toolsConfig = resolveToolsConfig(config);
 
   const enabled = scheduleConfig.enabled !== false;
   const timezone = scheduleConfig.timezone || "Asia/Shanghai";
@@ -627,13 +624,10 @@ export function createScheduleService(
   };
 
   const registerTool = (plugin: ChatLunaPlugin): string | null => {
-    if (!enabled || scheduleConfig.registerTool === false) return null;
+    if (!enabled || toolsConfig.schedule.register === false) return null;
 
-    const toolName =
-      (scheduleConfig.toolName || "daily_schedule").trim() || "daily_schedule";
-    const toolDescription =
-      scheduleConfig.toolDescription?.trim() ||
-      DEFAULT_SCHEDULE_CONFIG.toolDescription;
+    const toolName = toolsConfig.schedule.name;
+    const toolDescription = toolsConfig.schedule.description;
 
     plugin.registerTool(toolName, {
       selector: () => true,

@@ -5,7 +5,7 @@
 
 import type { Context } from "koishi";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SCHEDULE_CONFIG } from "../src/schema";
+import { DEFAULT_TOOLS_CONFIG } from "../src/schema";
 import {
   buildSummary,
   createScheduleService,
@@ -64,8 +64,23 @@ describe("schedule service utilities", () => {
 
 describe("schedule service tool registration", () => {
   function createService(options?: {
-    toolName?: string;
-    toolDescription?: string;
+    tools?: {
+      schedule?: {
+        register?: boolean;
+        name?: string;
+        description?: string;
+      };
+      weather?: {
+        register?: boolean;
+        name?: string;
+        description?: string;
+      };
+    };
+    legacySchedule?: {
+      registerTool?: boolean;
+      toolName?: string;
+      toolDescription?: string;
+    };
   }) {
     const registrations: Array<{ name: string; options: ToolRegistration }> =
       [];
@@ -79,20 +94,25 @@ describe("schedule service tool registration", () => {
           personaChatlunaPreset: "无",
           personaCustomPreset: "",
           timezone: "Asia/Shanghai",
-          registerTool: true,
           renderAsImage: false,
           startDelay: 1000,
-          toolName: options?.toolName ?? "daily_schedule",
-          toolDescription: options?.toolDescription ?? "获取今日日程文本内容。",
           prompt: "test",
+          ...options?.legacySchedule,
         },
         weather: {
           enabled: false,
           cityName: "",
           hourlyRefresh: false,
-          registerTool: false,
-          toolName: "get_weather",
-          toolDescription: "天气工具描述",
+        },
+        tools: {
+          schedule: {
+            ...DEFAULT_TOOLS_CONFIG.schedule,
+            ...options?.tools?.schedule,
+          },
+          weather: {
+            ...DEFAULT_TOOLS_CONFIG.weather,
+            ...options?.tools?.weather,
+          },
         },
       },
       getModel: () => null,
@@ -111,9 +131,14 @@ describe("schedule service tool registration", () => {
     return { service, plugin, registrations };
   }
 
-  it("uses custom tool description when registering tool", () => {
+  it("uses custom top-level tool description when registering tool", () => {
     const { service, plugin, registrations } = createService({
-      toolDescription: "自定义日程工具描述",
+      tools: {
+        schedule: {
+          register: true,
+          description: "自定义日程工具描述",
+        },
+      },
     });
 
     service.registerTool(plugin);
@@ -128,9 +153,14 @@ describe("schedule service tool registration", () => {
     expect(tool.description).toBe("自定义日程工具描述");
   });
 
-  it("falls back to default tool description when blank", () => {
+  it("falls back to default tool description when top-level description is blank", () => {
     const { service, plugin, registrations } = createService({
-      toolDescription: "   ",
+      tools: {
+        schedule: {
+          register: true,
+          description: "   ",
+        },
+      },
     });
 
     service.registerTool(plugin);
@@ -139,22 +169,57 @@ describe("schedule service tool registration", () => {
       description: string;
     };
 
-    expect(tool.description).toBe(DEFAULT_SCHEDULE_CONFIG.toolDescription);
+    expect(tool.description).toBe(DEFAULT_TOOLS_CONFIG.schedule.description);
   });
 
-  it("falls back to default tool name when blank", () => {
-    const { service, plugin, registrations } = createService({
-      toolName: "   ",
+  it("falls back to legacy tool fields when tools config is missing", () => {
+    const registrations: Array<{ name: string; options: ToolRegistration }> =
+      [];
+    const service = createScheduleService({
+      ctx: {} as Context,
+      config: {
+        schedule: {
+          enabled: true,
+          model: "",
+          personaSource: "none",
+          personaChatlunaPreset: "无",
+          personaCustomPreset: "",
+          timezone: "Asia/Shanghai",
+          renderAsImage: false,
+          startDelay: 1000,
+          prompt: "test",
+          registerTool: true,
+          toolName: "legacy_schedule",
+          toolDescription: "legacy schedule description",
+        },
+        weather: {
+          enabled: false,
+          cityName: "",
+          hourlyRefresh: false,
+        },
+      } as never,
+      getModel: () => null,
+      getMessageContent: () => "",
+      resolvePersonaPreset: () => "",
+      getWeatherText: async () => "",
+      renderSchedule: async () => null,
+      log: () => {},
     });
+    const plugin = {
+      registerTool: (name: string, options: ToolRegistration) => {
+        registrations.push({ name, options });
+      },
+    };
 
     const registeredName = service.registerTool(plugin);
-
     const tool = registrations[0].options.createTool() as {
+      description: string;
       name: string;
     };
 
-    expect(registeredName).toBe("daily_schedule");
-    expect(registrations[0].name).toBe("daily_schedule");
-    expect(tool.name).toBe("daily_schedule");
+    expect(registeredName).toBe("legacy_schedule");
+    expect(registrations[0].name).toBe("legacy_schedule");
+    expect(tool.name).toBe("legacy_schedule");
+    expect(tool.description).toBe("legacy schedule description");
   });
 });

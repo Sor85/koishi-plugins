@@ -3,8 +3,7 @@
  * 统一注册日程与天气变量及工具
  */
 
-import { resolveVariablesConfig } from "../config";
-import { DEFAULT_WEATHER_CONFIG } from "../schema";
+import { resolveToolsConfig, resolveVariablesConfig } from "../config";
 import { StructuredTool } from "@langchain/core/tools";
 import type { Context, Session } from "koishi";
 import { z } from "zod";
@@ -35,6 +34,7 @@ export function registerChatLunaIntegrations(
 ): IntegrationResult {
   const { ctx, plugin, config, scheduleService, weatherService, log } = deps;
   const variableConfig = resolveVariablesConfig(config);
+  const toolsConfig = resolveToolsConfig(config);
   const variableNames: string[] = [];
   const toolNames: string[] = [];
 
@@ -84,12 +84,9 @@ export function registerChatLunaIntegrations(
       log("info", `天气变量已注册: ${weatherVariableName}`);
     }
 
-    if (config.weather.registerTool) {
-      const weatherToolName =
-        (config.weather.toolName || "get_weather").trim() || "get_weather";
-      const weatherToolDescription =
-        (config.weather.toolDescription || "").trim() ||
-        DEFAULT_WEATHER_CONFIG.toolDescription;
+    if (toolsConfig.weather.register) {
+      const weatherToolName = toolsConfig.weather.name;
+      const weatherToolDescription = toolsConfig.weather.description;
       plugin.registerTool(weatherToolName, {
         selector: () => true,
         createTool: () =>

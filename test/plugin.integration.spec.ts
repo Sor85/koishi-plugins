@@ -5,15 +5,14 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { Context } from "koishi";
-import { DEFAULT_WEATHER_CONFIG } from "../src/schema";
+import { DEFAULT_TOOLS_CONFIG } from "../src/schema";
 import { registerChatLunaIntegrations } from "../src/integrations/chatluna";
 import type { ToolRegistration } from "../src/types";
 
 describe("chatluna integrations", () => {
-  it("registers weather variable and custom tool description", () => {
+  it("registers weather variable and tool from top-level tools config", () => {
     const providers: string[] = [];
-    const registrations: Array<{ name: string; options: ToolRegistration }> =
-      [];
+    const registrations: Array<{ name: string; options: ToolRegistration }> = [];
 
     const ctx = {
       chatluna: {
@@ -46,17 +45,11 @@ describe("chatluna integrations", () => {
           prompt: "test",
           renderAsImage: false,
           startDelay: 1000,
-          registerTool: true,
-          toolName: "daily_schedule",
-          toolDescription: "获取今日日程文本内容。",
         },
         weather: {
           enabled: true,
           cityName: "上海",
           hourlyRefresh: false,
-          registerTool: true,
-          toolName: "get_weather",
-          toolDescription: "自定义天气工具描述",
         },
         variables: {
           schedule: "schedule",
@@ -64,6 +57,18 @@ describe("chatluna integrations", () => {
           outfit: "outfit",
           currentOutfit: "currentOutfit",
           weather: "weather",
+        },
+        tools: {
+          schedule: {
+            register: true,
+            name: "daily_schedule",
+            description: "获取今日日程文本内容。",
+          },
+          weather: {
+            register: true,
+            name: "get_weather",
+            description: "自定义天气工具描述",
+          },
         },
       } as never,
       scheduleService: {
@@ -96,8 +101,7 @@ describe("chatluna integrations", () => {
   });
 
   it("falls back to default weather tool description when blank", () => {
-    const registrations: Array<{ name: string; options: ToolRegistration }> =
-      [];
+    const registrations: Array<{ name: string; options: ToolRegistration }> = [];
 
     registerChatLunaIntegrations({
       ctx: {
@@ -123,17 +127,19 @@ describe("chatluna integrations", () => {
           prompt: "test",
           renderAsImage: false,
           startDelay: 1000,
-          registerTool: true,
-          toolName: "daily_schedule",
-          toolDescription: "获取今日日程文本内容。",
         },
         weather: {
           enabled: true,
           cityName: "上海",
           hourlyRefresh: false,
-          registerTool: true,
-          toolName: "get_weather",
-          toolDescription: "   ",
+        },
+        tools: {
+          schedule: DEFAULT_TOOLS_CONFIG.schedule,
+          weather: {
+            register: true,
+            name: "get_weather",
+            description: "   ",
+          },
         },
       } as never,
       scheduleService: {
@@ -153,12 +159,13 @@ describe("chatluna integrations", () => {
     };
 
     expect(weatherTool.description).toBe(
-      DEFAULT_WEATHER_CONFIG.toolDescription,
+      DEFAULT_TOOLS_CONFIG.weather.description,
     );
   });
 
-  it("falls back to legacy weather variable when variables are missing", () => {
+  it("falls back to legacy weather tool fields when tools are missing", () => {
     const providers: string[] = [];
+    const registrations: Array<{ name: string; options: ToolRegistration }> = [];
 
     registerChatLunaIntegrations({
       ctx: {
@@ -172,7 +179,9 @@ describe("chatluna integrations", () => {
         },
       } as unknown as Context,
       plugin: {
-        registerTool: vi.fn(),
+        registerTool: (name: string, options: ToolRegistration) => {
+          registrations.push({ name, options });
+        },
       } as never,
       config: {
         schedule: {
@@ -181,17 +190,14 @@ describe("chatluna integrations", () => {
           prompt: "test",
           renderAsImage: false,
           startDelay: 1000,
-          registerTool: true,
-          toolName: "daily_schedule",
-          toolDescription: "获取今日日程文本内容。",
         },
         weather: {
           enabled: true,
           cityName: "上海",
           hourlyRefresh: false,
-          registerTool: false,
-          toolName: "get_weather",
-          toolDescription: DEFAULT_WEATHER_CONFIG.toolDescription,
+          registerTool: true,
+          toolName: "legacy_weather",
+          toolDescription: "legacy weather description",
           variableName: "legacyWeather",
         },
       } as never,
@@ -207,6 +213,14 @@ describe("chatluna integrations", () => {
       log: () => {},
     });
 
+    const weatherTool = registrations[0].options.createTool() as {
+      description: string;
+      name: string;
+    };
+
     expect(providers).toContain("legacyWeather");
+    expect(registrations[0].name).toBe("legacy_weather");
+    expect(weatherTool.name).toBe("legacy_weather");
+    expect(weatherTool.description).toBe("legacy weather description");
   });
 });
