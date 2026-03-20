@@ -67,7 +67,7 @@ export interface Config {
   affinityEnabled: boolean;
   affinityDisplayRange: number;
   initialAffinity: number;
-  affinityDynamics: AffinityDynamicsConfig;
+  affinityDynamics?: AffinityDynamicsConfig;
   blacklistLogInterception: boolean;
   shortTermBlacklistPenalty: number;
   unblockPermanentInitialAffinity: number;

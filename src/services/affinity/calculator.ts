@@ -3,6 +3,7 @@
  * 提供短期/长期好感度、动作窗口、系数等配置解析和计算函数
  */
 
+import { AFFINITY_DYNAMICS_DEFAULTS } from "../../constants";
 import type {
   Config,
   ActionType,
@@ -26,14 +27,15 @@ export function resolveShortTermConfig(
   config: Config,
 ): ResolvedShortTermConfig {
   const cfg = config?.affinityDynamics?.shortTerm || {};
+  const defaults = AFFINITY_DYNAMICS_DEFAULTS.shortTerm;
   const promoteRaw = Number(cfg.promoteThreshold);
   const demoteRaw = Number(cfg.demoteThreshold);
   let promoteThreshold = Number.isFinite(promoteRaw)
     ? Math.round(promoteRaw)
-    : 15;
+    : defaults.promoteThreshold;
   let demoteThreshold = Number.isFinite(demoteRaw)
     ? Math.round(demoteRaw)
-    : -15;
+    : defaults.demoteThreshold;
 
   if (promoteThreshold <= demoteThreshold) {
     const midpoint = Math.round((promoteThreshold + demoteThreshold) / 2) || 0;
@@ -41,21 +43,30 @@ export function resolveShortTermConfig(
     demoteThreshold = midpoint - 15;
   }
 
-  const fallbackStep = Number.isFinite(cfg.longTermStep)
-    ? cfg.longTermStep!
-    : 3;
   const promoteStepRaw = Number(cfg.longTermPromoteStep);
   const demoteStepRaw = Number(cfg.longTermDemoteStep);
   const longTermPromoteStep = Math.max(
     1,
     Math.round(
-      Math.abs(Number.isFinite(promoteStepRaw) ? promoteStepRaw : fallbackStep),
+      Math.abs(
+        Number.isFinite(promoteStepRaw)
+          ? promoteStepRaw
+          : Number.isFinite(cfg.longTermStep)
+            ? cfg.longTermStep!
+            : defaults.longTermPromoteStep,
+      ),
     ),
   );
   const longTermDemoteStep = Math.max(
     1,
     Math.round(
-      Math.abs(Number.isFinite(demoteStepRaw) ? demoteStepRaw : fallbackStep),
+      Math.abs(
+        Number.isFinite(demoteStepRaw)
+          ? demoteStepRaw
+          : Number.isFinite(cfg.longTermStep)
+            ? cfg.longTermStep!
+            : defaults.longTermDemoteStep,
+      ),
     ),
   );
 
@@ -71,28 +82,31 @@ export function resolveActionWindowConfig(
   config: Config,
 ): ResolvedActionWindowConfig {
   const cfg = config?.affinityDynamics?.actionWindow || {};
+  const defaults = AFFINITY_DYNAMICS_DEFAULTS.actionWindow;
   const windowHoursRaw = Number(cfg.windowHours);
   const windowHours = Math.max(
     1,
-    Number.isFinite(windowHoursRaw) ? windowHoursRaw : 24,
+    Number.isFinite(windowHoursRaw) ? windowHoursRaw : defaults.windowHours,
   );
   const increaseBonus = Number.isFinite(cfg.increaseBonus)
     ? cfg.increaseBonus!
-    : 2;
+    : defaults.increaseBonus;
   const decreaseBonus = Number.isFinite(cfg.decreaseBonus)
     ? cfg.decreaseBonus!
-    : 2;
+    : defaults.decreaseBonus;
   const bonusChatThresholdRaw = Number(cfg.bonusChatThreshold);
   const bonusChatThreshold = Math.max(
     0,
     Number.isFinite(bonusChatThresholdRaw)
       ? Math.round(bonusChatThresholdRaw)
-      : 0,
+      : defaults.bonusChatThreshold,
   );
   const maxEntriesRaw = Number(cfg.maxEntries);
   const maxEntries = Math.max(
     10,
-    Number.isFinite(maxEntriesRaw) ? Math.round(maxEntriesRaw) : 60,
+    Number.isFinite(maxEntriesRaw)
+      ? Math.round(maxEntriesRaw)
+      : defaults.maxEntries,
   );
 
   return {
@@ -109,30 +123,23 @@ export function resolveCoefficientConfig(
   config: Config,
 ): ResolvedCoefficientConfig {
   const cfg = config?.affinityDynamics?.coefficient || {};
-  const base = Number.isFinite(cfg.base) ? cfg.base! : 1;
+  const defaults = AFFINITY_DYNAMICS_DEFAULTS.coefficient;
+  const base = Number.isFinite(cfg.base) ? cfg.base! : defaults.base;
   const maxDrop = Math.max(
     0,
-    Number.isFinite(cfg.maxDrop) ? cfg.maxDrop! : 0.3,
+    Number.isFinite(cfg.maxDrop) ? cfg.maxDrop! : defaults.maxDrop,
   );
   const maxBoost = Math.max(
     0,
-    Number.isFinite(cfg.maxBoost) ? cfg.maxBoost! : 0.3,
+    Number.isFinite(cfg.maxBoost) ? cfg.maxBoost! : defaults.maxBoost,
   );
   const decayPerDay = Math.max(
     0,
-    Number.isFinite(cfg.decayPerDay)
-      ? cfg.decayPerDay!
-      : maxDrop > 0
-        ? maxDrop / 3
-        : 0.1,
+    Number.isFinite(cfg.decayPerDay) ? cfg.decayPerDay! : defaults.decayPerDay,
   );
   const boostPerDay = Math.max(
     0,
-    Number.isFinite(cfg.boostPerDay)
-      ? cfg.boostPerDay!
-      : maxBoost > 0
-        ? maxBoost / 3
-        : 0.1,
+    Number.isFinite(cfg.boostPerDay) ? cfg.boostPerDay! : defaults.boostPerDay,
   );
   const min = base - maxDrop;
   const max = base + maxBoost;

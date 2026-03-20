@@ -73,3 +73,26 @@ export const FETCH_CONSTANTS = {
 export const BASE_AFFINITY_DEFAULTS = {
   initialAffinity: 30,
 } as const;
+
+export const AFFINITY_DYNAMICS_DEFAULTS = {
+  shortTerm: {
+    promoteThreshold: 15,
+    demoteThreshold: -10,
+    longTermPromoteStep: 3,
+    longTermDemoteStep: 5,
+  },
+  actionWindow: {
+    windowHours: 24,
+    increaseBonus: 2,
+    decreaseBonus: 2,
+    bonusChatThreshold: 10,
+    maxEntries: 80,
+  },
+  coefficient: {
+    base: 1,
+    maxDrop: 0.3,
+    maxBoost: 0.3,
+    decayPerDay: 0.05,
+    boostPerDay: 0.05,
+  },
+} as const;
