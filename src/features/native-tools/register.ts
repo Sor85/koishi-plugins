@@ -8,12 +8,14 @@ import type { Config, LogFn, OneBotProtocol } from "../../types";
 import {
   DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
   DEFAULT_POKE_TOOL_DESCRIPTION,
+  DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION,
   DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
   DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
   DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
 } from "./defaults";
 import { createDeleteMessageTool } from "./tools/delete-msg";
 import { createPokeTool } from "./tools/poke";
+import { createSetGroupBanTool } from "./tools/set-group-ban";
 import { createSetGroupCardTool } from "./tools/set-group-card";
 import { createSetMsgEmojiTool } from "./tools/set-msg-emoji";
 import { createSetProfileTool } from "./tools/profile";
@@ -110,6 +112,24 @@ export function registerNativeTools(deps: RegisterNativeToolsDeps): void {
         createSetGroupCardTool({ ctx, toolName, description, log }),
     });
     log?.("info", `群昵称工具已注册: ${toolName}`);
+  }
+
+  if (config.setGroupBan.enabled) {
+    const toolName = resolveToolName(
+      config.setGroupBan.toolName,
+      "set_group_ban",
+    );
+    const description = resolveToolDescription(
+      config.setGroupBan.description,
+      DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION,
+    );
+    plugin.registerTool(toolName, {
+      selector: () => true,
+      authorization: (session: Session) => session?.platform === "onebot",
+      createTool: () =>
+        createSetGroupBanTool({ toolName, description, log, protocol }),
+    });
+    log?.("info", `群成员禁言工具已注册: ${toolName}`);
   }
 
   if (config.setMsgEmoji.enabled) {

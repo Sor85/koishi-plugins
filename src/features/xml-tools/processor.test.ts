@@ -12,53 +12,59 @@ describe("createXmlProcessor", () => {
     enablePokeXmlTool: true,
     enableEmojiXmlTool: true,
     enableDeleteXmlTool: true,
+    enableBanXmlTool: true,
     debugLogging: false,
   } as any;
 
-  it("路由 poke 动作到 sendPoke", async () => {
-    const sendPoke = vi.fn().mockResolvedValue("ok");
+  it("路由 ban 动作到 sendGroupBan", async () => {
+    const sendGroupBan = vi.fn().mockResolvedValue("ok");
     const processor = createXmlProcessor({
       config: baseConfig,
       protocol: "napcat",
-      sendPoke,
+      sendGroupBan,
     });
 
     const handled = await processor({
-      response: '<actions><poke id="u1"/><poke id="u2"/></actions>',
+      response:
+        '<actions><ban id="u1" duration="600"/><ban id="u2" duration="0"/></actions>',
       session,
     });
 
     expect(handled).toBe(true);
-    expect(sendPoke).toHaveBeenCalledTimes(2);
-    expect(sendPoke).toHaveBeenNthCalledWith(1, {
+    expect(sendGroupBan).toHaveBeenCalledTimes(2);
+    expect(sendGroupBan).toHaveBeenNthCalledWith(1, {
       session,
       userId: "u1",
+      duration: "600",
       protocol: "napcat",
       log: undefined,
     });
-    expect(sendPoke).toHaveBeenNthCalledWith(2, {
+    expect(sendGroupBan).toHaveBeenNthCalledWith(2, {
       session,
       userId: "u2",
+      duration: "0",
       protocol: "napcat",
       log: undefined,
     });
   });
 
-  it("在同一响应中分别路由 poke、emoji、delete", async () => {
+  it("在同一响应中分别路由 poke、emoji、delete、ban", async () => {
     const sendPoke = vi.fn().mockResolvedValue("ok");
     const sendMsgEmoji = vi.fn().mockResolvedValue("ok");
     const sendDeleteMessage = vi.fn().mockResolvedValue("ok");
+    const sendGroupBan = vi.fn().mockResolvedValue("ok");
     const processor = createXmlProcessor({
       config: baseConfig,
       protocol: "llbot",
       sendPoke,
       sendMsgEmoji,
       sendDeleteMessage,
+      sendGroupBan,
     });
 
     const handled = await processor({
       response:
-        '<actions><poke id="u1"/><emoji message_id="m1" emoji_id="66"/><delete message_id="m2"/></actions>',
+        '<actions><poke id="u1"/><emoji message_id="m1" emoji_id="66"/><delete message_id="m2"/><ban id="u2" duration="600"/></actions>',
       session,
     });
 
@@ -74,6 +80,13 @@ describe("createXmlProcessor", () => {
     expect(sendDeleteMessage).toHaveBeenCalledWith({
       session,
       messageId: "m2",
+      log: undefined,
+    });
+    expect(sendGroupBan).toHaveBeenCalledWith({
+      session,
+      userId: "u2",
+      duration: "600",
+      protocol: "llbot",
       log: undefined,
     });
   });
@@ -95,7 +108,10 @@ describe("createXmlProcessor", () => {
 
     expect(handled).toBe(false);
     expect(sendPoke).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith("warn", "检测到戳一戳标记但缺少会话上下文");
+    expect(log).toHaveBeenCalledWith(
+      "warn",
+      "检测到戳一戳标记但缺少会话上下文",
+    );
   });
 
   it("过滤缺失参数的 emoji 与 delete 项", async () => {
@@ -168,6 +184,10 @@ describe("createXmlProcessor", () => {
 
     expect(handled).toBe(true);
     expect(sendPoke).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenCalledWith("warn", "XML 触发 poke 失败", expect.any(Error));
+    expect(log).toHaveBeenCalledWith(
+      "warn",
+      "XML 触发 poke 失败",
+      expect.any(Error),
+    );
   });
 });

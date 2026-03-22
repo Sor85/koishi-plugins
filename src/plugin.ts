@@ -58,7 +58,8 @@ export function apply(ctx: Context, config: Config): void {
   if (
     config.enablePokeXmlTool ||
     config.enableEmojiXmlTool ||
-    config.enableDeleteXmlTool
+    config.enableDeleteXmlTool ||
+    config.enableBanXmlTool
   ) {
     ctx.inject(["chatluna_character"], (innerCtx) => {
       characterCtx = innerCtx;

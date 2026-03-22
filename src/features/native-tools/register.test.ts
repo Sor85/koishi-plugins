@@ -9,6 +9,7 @@ import type { Config } from "../../types";
 import {
   DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
   DEFAULT_POKE_TOOL_DESCRIPTION,
+  DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION,
   DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
   DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
   DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
@@ -33,6 +34,11 @@ function createConfig(overrides: Partial<Config> = {}): Config {
       toolName: "set_group_card",
       description: DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
     },
+    setGroupBan: {
+      enabled: false,
+      toolName: "set_group_ban",
+      description: DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION,
+    },
     setMsgEmoji: {
       enabled: false,
       toolName: "set_msg_emoji",
@@ -46,6 +52,7 @@ function createConfig(overrides: Partial<Config> = {}): Config {
     enablePokeXmlTool: false,
     enableEmojiXmlTool: false,
     enableDeleteXmlTool: false,
+    enableBanXmlTool: false,
     referencePrompt: "",
     userInfo: { variableName: "userInfo", items: [] },
     botInfo: { variableName: "botInfo", items: [] },
@@ -90,6 +97,11 @@ describe("registerNativeTools", () => {
         toolName: "custom_emoji",
         description: "custom emoji description",
       },
+      setGroupBan: {
+        enabled: true,
+        toolName: "custom_ban",
+        description: "custom ban description",
+      },
     });
 
     registerNativeTools({
@@ -99,7 +111,7 @@ describe("registerNativeTools", () => {
       protocol: "napcat",
     });
 
-    expect(registerTool).toHaveBeenCalledTimes(2);
+    expect(registerTool).toHaveBeenCalledTimes(3);
     expect(registerTool).toHaveBeenNthCalledWith(
       1,
       "custom_poke",
@@ -111,6 +123,15 @@ describe("registerNativeTools", () => {
     );
     expect(registerTool).toHaveBeenNthCalledWith(
       2,
+      "custom_ban",
+      expect.objectContaining({
+        selector: expect.any(Function),
+        authorization: expect.any(Function),
+        createTool: expect.any(Function),
+      }),
+    );
+    expect(registerTool).toHaveBeenNthCalledWith(
+      3,
       "custom_emoji",
       expect.objectContaining({
         selector: expect.any(Function),
@@ -194,6 +215,28 @@ describe("registerNativeTools", () => {
     expect(tool.description).toBe(DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION);
   });
 
+  it("在禁言工具描述为空白时回退到默认描述", () => {
+    const registerTool = vi.fn();
+    const config = createConfig({
+      setGroupBan: {
+        enabled: true,
+        toolName: "set_group_ban",
+        description: "   ",
+      },
+    });
+
+    registerNativeTools({
+      ctx: {} as never,
+      config,
+      plugin: { registerTool },
+      protocol: "napcat",
+    });
+
+    const registration = registerTool.mock.calls[0][1];
+    const tool = registration.createTool();
+
+    expect(tool.description).toBe(DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION);
+  });
   it("忽略未启用的原生工具", () => {
     const registerTool = vi.fn();
 

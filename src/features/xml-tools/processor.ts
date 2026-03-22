@@ -7,6 +7,7 @@ import type { Session } from "koishi";
 import type { Config, LogFn, OneBotProtocol } from "../../types";
 import { sendDeleteMessage } from "../native-tools/tools/delete-msg";
 import { sendPoke } from "../native-tools/tools/poke";
+import { sendGroupBan } from "../native-tools/tools/set-group-ban";
 import { sendMsgEmoji } from "../native-tools/tools/set-msg-emoji";
 import { parseSelfClosingXmlTags } from "./parser";
 
@@ -22,6 +23,7 @@ export interface XmlProcessorDeps {
   sendPoke?: typeof sendPoke;
   sendMsgEmoji?: typeof sendMsgEmoji;
   sendDeleteMessage?: typeof sendDeleteMessage;
+  sendGroupBan?: typeof sendGroupBan;
 }
 
 export function createXmlProcessor(deps: XmlProcessorDeps) {
@@ -32,15 +34,20 @@ export function createXmlProcessor(deps: XmlProcessorDeps) {
     sendPoke: runPoke = sendPoke,
     sendMsgEmoji: runEmoji = sendMsgEmoji,
     sendDeleteMessage: runDelete = sendDeleteMessage,
+    sendGroupBan: runBan = sendGroupBan,
   } = deps;
 
-  return async ({ response, session }: XmlProcessorContext): Promise<boolean> => {
+  return async ({
+    response,
+    session,
+  }: XmlProcessorContext): Promise<boolean> => {
     const content = String(response || "").trim();
     if (!content) return false;
 
     const pokeTags = parseSelfClosingXmlTags(content, "poke");
     const emojiTags = parseSelfClosingXmlTags(content, "emoji");
     const deleteTags = parseSelfClosingXmlTags(content, "delete");
+    const banTags = parseSelfClosingXmlTags(content, "ban");
     let handled = false;
 
     if (config.enablePokeXmlTool && pokeTags.length > 0) {
@@ -101,6 +108,33 @@ export function createXmlProcessor(deps: XmlProcessorDeps) {
             await runDelete({ session, messageId, log });
           } catch (error) {
             log?.("warn", "XML 触发撤回失败", error);
+          }
+        }
+      }
+    }
+
+    if (config.enableBanXmlTool && banTags.length > 0) {
+      if (!session) {
+        log?.("warn", "检测到禁言标记但缺少会话上下文");
+      } else {
+        const items = banTags
+          .map((attrs) => ({
+            userId: String(attrs.id || "").trim(),
+            duration: String(attrs.duration || "").trim(),
+          }))
+          .filter((item) => item.userId && item.duration);
+        if (items.length > 0) handled = true;
+        for (const item of items) {
+          try {
+            await runBan({
+              session,
+              userId: item.userId,
+              duration: item.duration,
+              protocol,
+              log,
+            });
+          } catch (error) {
+            log?.("warn", "XML 触发禁言失败", error);
           }
         }
       }

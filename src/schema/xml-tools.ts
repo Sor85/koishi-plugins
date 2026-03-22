@@ -23,7 +23,13 @@ const DEFAULT_XML_REFERENCE_PROMPT = `## 动作指令
     - 66: 爱心
   - 适用场景:
     - 用于对上下文中的特定消息进行表情回应。
-3. 撤回消息: <delete message_id=""/>
+3. 禁言群成员: <ban id="" duration=""/>
+  - id: user_id
+  - duration: 禁言时长，单位秒，传 0 表示解除禁言
+  - 适用场景:
+    - 你在本群为管理员
+    - 用于禁言或解除禁言指定群成员
+4. 撤回消息: <delete message_id=""/>
   - message_id: 消息 ID
   - 适用场景:
     - 你在本群为管理员
@@ -34,6 +40,7 @@ const DEFAULT_XML_REFERENCE_PROMPT = `## 动作指令
   <actions>
     <poke id="123456"/>
     <emoji message_id="346234" emoji_id="66"/>
+    <ban id="123456" duration="600"/>
     <delete message_id="435663"/>
   </actions>
 \`\`\``;
@@ -49,7 +56,14 @@ export const XmlToolsSchema = Schema.object({
     ),
   enableDeleteXmlTool: Schema.boolean()
     .default(false)
-    .description("启用 XML 形式的消息撤回调用（需 chatluna-character 开启 enableMessageId，与 原生工具 二选一）"),
+    .description(
+      "启用 XML 形式的消息撤回调用（需 chatluna-character 开启 enableMessageId，与 原生工具 二选一）",
+    ),
+  enableBanXmlTool: Schema.boolean()
+    .default(false)
+    .description(
+      "启用 XML 形式的群成员禁言调用（与 原生工具 二选一）",
+    ),
   referencePrompt: Schema.string()
     .role("textarea")
     .default(DEFAULT_XML_REFERENCE_PROMPT)

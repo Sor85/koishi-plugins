@@ -17,6 +17,7 @@ export interface NativeToolsConfig {
   poke: NativeToolItemConfig;
   setSelfProfile: NativeToolItemConfig;
   setGroupCard: NativeToolItemConfig;
+  setGroupBan: NativeToolItemConfig;
   setMsgEmoji: NativeToolItemConfig;
   deleteMessage: NativeToolItemConfig;
 }
@@ -25,6 +26,7 @@ export interface XmlToolsConfig {
   enablePokeXmlTool: boolean;
   enableEmojiXmlTool: boolean;
   enableDeleteXmlTool: boolean;
+  enableBanXmlTool: boolean;
   referencePrompt: string;
 }
 

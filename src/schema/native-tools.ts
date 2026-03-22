@@ -7,6 +7,7 @@ import { Schema } from "koishi";
 import {
   DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION,
   DEFAULT_POKE_TOOL_DESCRIPTION,
+  DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION,
   DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
   DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION,
   DEFAULT_SET_SELF_PROFILE_TOOL_DESCRIPTION,
@@ -17,9 +18,7 @@ export const NativeToolsSchema = Schema.object({
     enabled: Schema.boolean()
       .default(false)
       .description("注册 ChatLuna 工具：戳一戳（与 XML工具 二选一）"),
-    toolName: Schema.string()
-      .default("poke_user")
-      .description("工具名称"),
+    toolName: Schema.string().default("poke_user").description("工具名称"),
     description: Schema.string()
       .default(DEFAULT_POKE_TOOL_DESCRIPTION)
       .description("工具描述"),
@@ -29,7 +28,9 @@ export const NativeToolsSchema = Schema.object({
   setSelfProfile: Schema.object({
     enabled: Schema.boolean()
       .default(false)
-      .description("注册 ChatLuna 工具：修改自身账户信息（支持昵称/签名/性别）"),
+      .description(
+        "注册 ChatLuna 工具：修改自身账户信息（支持昵称/签名/性别）",
+      ),
     toolName: Schema.string()
       .default("set_self_profile")
       .description("工具名称"),
@@ -43,14 +44,23 @@ export const NativeToolsSchema = Schema.object({
     enabled: Schema.boolean()
       .default(false)
       .description("注册 ChatLuna 工具：修改群成员昵称"),
-    toolName: Schema.string()
-      .default("set_group_card")
-      .description("工具名称"),
+    toolName: Schema.string().default("set_group_card").description("工具名称"),
     description: Schema.string()
       .default(DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION)
       .description("工具描述"),
   })
     .description("修改群成员昵称工具")
+    .collapse(),
+  setGroupBan: Schema.object({
+    enabled: Schema.boolean()
+      .default(false)
+      .description("注册 ChatLuna 工具：禁言群成员"),
+    toolName: Schema.string().default("set_group_ban").description("工具名称"),
+    description: Schema.string()
+      .default(DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION)
+      .description("工具描述"),
+  })
+    .description("禁言工具")
     .collapse(),
   setMsgEmoji: Schema.object({
     enabled: Schema.boolean()
@@ -58,9 +68,7 @@ export const NativeToolsSchema = Schema.object({
       .description(
         "注册 ChatLuna 工具：给消息添加表情（需 chatluna-character 开启 enableMessageId，与 XML工具 二选一，表情对照表：https://bot.q.qq.com/wiki/develop/pythonsdk/model/emoji.html ）",
       ),
-    toolName: Schema.string()
-      .default("set_msg_emoji")
-      .description("工具名称"),
+    toolName: Schema.string().default("set_msg_emoji").description("工具名称"),
     description: Schema.string()
       .default(DEFAULT_SET_MSG_EMOJI_TOOL_DESCRIPTION)
       .description("工具描述"),
@@ -73,9 +81,7 @@ export const NativeToolsSchema = Schema.object({
       .description(
         "注册 ChatLuna 工具：撤回消息（需 chatluna-character 开启 enableMessageId，与 XML工具 二选一）",
       ),
-    toolName: Schema.string()
-      .default("delete_msg")
-      .description("工具名称"),
+    toolName: Schema.string().default("delete_msg").description("工具名称"),
     description: Schema.string()
       .default(DEFAULT_DELETE_MESSAGE_TOOL_DESCRIPTION)
       .description("工具描述"),
@@ -98,6 +104,11 @@ export const NativeToolsSchema = Schema.object({
       enabled: false,
       toolName: "set_group_card",
       description: DEFAULT_SET_GROUP_CARD_TOOL_DESCRIPTION,
+    },
+    setGroupBan: {
+      enabled: false,
+      toolName: "set_group_ban",
+      description: DEFAULT_SET_GROUP_BAN_TOOL_DESCRIPTION,
     },
     setMsgEmoji: {
       enabled: false,
