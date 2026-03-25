@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-chatluna-gemini-tools",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "将 Google Search 与 URL Context 注册为 ChatLuna 工具。",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
