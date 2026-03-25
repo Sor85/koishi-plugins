@@ -47,7 +47,6 @@ export const DEFAULT_URL_CONTEXT_PROMPT = [
 
 export interface Config {
   toolModel: string;
-  debug: boolean;
   enableGoogleSearchTool: boolean;
   googleSearchToolName: string;
   googleSearchDescription: string;
@@ -58,6 +57,7 @@ export interface Config {
   urlContextDescription: string;
   urlContextPrompt: string;
   maxUrlLength: number;
+  debug: boolean;
   requestTimeoutMs: number;
 }
 
@@ -66,13 +66,6 @@ export const Config: Schema<Config> = Schema.intersect([
     toolModel: Schema.dynamic("model")
       .default("无")
       .description("选择支持 Google Search 和 URL Context 的 ChatLuna 模型"),
-    debug: Schema.boolean().default(false).description("是否输出调试日志"),
-    requestTimeoutMs: Schema.number()
-      .min(1000)
-      .max(120000)
-      .step(1000)
-      .default(20000)
-      .description("工具模型调用超时时间（毫秒）"),
   }).description("基础设置"),
   Schema.object({
     enableGoogleSearchTool: Schema.boolean()
@@ -120,4 +113,13 @@ export const Config: Schema<Config> = Schema.intersect([
       .default(2048)
       .description("URL 最大长度"),
   }).description("URL Context"),
+  Schema.object({
+    debug: Schema.boolean().default(false).description("是否输出调试日志"),
+    requestTimeoutMs: Schema.number()
+      .min(1000)
+      .max(120000)
+      .step(1000)
+      .default(20000)
+      .description("工具模型调用超时时间（毫秒）"),
+  }).description("其他设置"),
 ]);

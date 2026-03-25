@@ -56,19 +56,19 @@ import {
 } from "../../src/config";
 
 describe("config schema", () => {
-  it("应按基础设置、Google Search、URL Context 三组构造 Schema", () => {
+  it("应按基础设置、Google Search、URL Context、其他设置四组构造 Schema", () => {
     expect(Config).toBeTruthy();
     expect(intersectCalls).toHaveLength(1);
-    expect(intersectCalls[0]).toHaveLength(3);
-    expect(objectCalls).toHaveLength(3);
+    expect(intersectCalls[0]).toHaveLength(4);
+    expect(objectCalls).toHaveLength(4);
   });
 
-  it("基础设置分组应包含模型、调试和超时配置", () => {
+  it("基础设置分组应仅包含模型配置", () => {
     const baseGroup = objectCalls[0];
 
     expect(baseGroup).toHaveProperty("toolModel");
-    expect(baseGroup).toHaveProperty("debug");
-    expect(baseGroup).toHaveProperty("requestTimeoutMs");
+    expect(baseGroup).not.toHaveProperty("debug");
+    expect(baseGroup).not.toHaveProperty("requestTimeoutMs");
   });
 
   it("Google Search 分组应包含开关、名称、描述、提示词和查询长度", () => {
@@ -82,14 +82,10 @@ describe("config schema", () => {
     expect(DEFAULT_GOOGLE_SEARCH_NAME).toBe("google_search");
   });
 
-  it("URL Context 分组应包含开关、名称、描述、提示词和 URL 长度", () => {
-    const urlContextGroup = objectCalls[2];
+  it("其他设置分组应包含调试和超时配置", () => {
+    const miscGroup = objectCalls[3];
 
-    expect(urlContextGroup).toHaveProperty("enableUrlContextTool");
-    expect(urlContextGroup).toHaveProperty("urlContextToolName");
-    expect(urlContextGroup).toHaveProperty("urlContextDescription");
-    expect(urlContextGroup).toHaveProperty("urlContextPrompt");
-    expect(urlContextGroup).toHaveProperty("maxUrlLength");
-    expect(DEFAULT_URL_CONTEXT_NAME).toBe("url_context");
+    expect(miscGroup).toHaveProperty("debug");
+    expect(miscGroup).toHaveProperty("requestTimeoutMs");
   });
 });
