@@ -6,13 +6,14 @@ name: Publish
 on:
   push:
     tags:
-      - 'koishi-plugin-**'
+      - '**'
 
 permissions:
   contents: read
 
 jobs:
   publish:
+    if: startsWith(github.ref_name, 'koishi-plugin-')
     runs-on: ubuntu-latest
 
     steps:
