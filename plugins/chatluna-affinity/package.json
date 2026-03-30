@@ -13,8 +13,7 @@
   "scripts": {
     "build": "tsup && vite build",
     "watch": "tsup --watch",
-    "clean": "rimraf lib dist",
-    "test": "npm run build && node --test test/**/*.test.js"
+    "clean": "rimraf lib dist"
   },
   "keywords": [
     "chatbot",
