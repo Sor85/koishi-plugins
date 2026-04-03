@@ -46,6 +46,9 @@ const DEFAULT_XML_REFERENCE_PROMPT = `## 动作指令
 \`\`\``;
 
 export const XmlToolsSchema = Schema.object({
+  injectXmlToolAsReplyTool: Schema.boolean()
+    .default(false)
+    .description("将 XML 工具改为注入实验性“工具调用回复”的参数中"),
   enablePokeXmlTool: Schema.boolean()
     .default(false)
     .description("启用 XML 形式的戳一戳调用（与 原生工具 二选一）"),

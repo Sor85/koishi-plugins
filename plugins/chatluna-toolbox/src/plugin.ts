@@ -10,6 +10,10 @@ import {
   registerNativeTools,
   resolveOneBotProtocol,
 } from "./features/native-tools/register";
+import {
+  hasReplyToolsEnabled,
+  registerCharacterReplyTools,
+} from "./features/reply-tools/register";
 import { registerXmlTools } from "./features/xml-tools/register";
 import { registerVariables } from "./features/variables/register";
 
@@ -30,9 +34,16 @@ export function apply(ctx: Context, config: Config): void {
     },
   };
   const log = createLogger(ctx, config);
+  const enableXmlRuntime =
+    !config.injectXmlToolAsReplyTool &&
+    (config.enablePokeXmlTool ||
+      config.enableEmojiXmlTool ||
+      config.enableDeleteXmlTool ||
+      config.enableBanXmlTool);
 
   let xmlRuntime: ReturnType<typeof registerXmlTools> | null = null;
   let characterCtx: Context | null = null;
+  let replyToolsDispose: (() => void) | null = null;
 
   const initializeServices = async (): Promise<void> => {
     log("info", "toolbox 初始化开始");
@@ -41,8 +52,10 @@ export function apply(ctx: Context, config: Config): void {
 
     const protocol = resolveOneBotProtocol(config, log);
     registerNativeTools({ ctx, config, plugin, protocol, log });
-    xmlRuntime = registerXmlTools({ ctx, config, protocol, log });
-    if (characterCtx && xmlRuntime.start()) {
+    xmlRuntime = enableXmlRuntime
+      ? registerXmlTools({ ctx, config, protocol, log })
+      : null;
+    if (characterCtx && xmlRuntime?.start()) {
       log("info", "XML 工具已启用");
     }
 
@@ -51,25 +64,36 @@ export function apply(ctx: Context, config: Config): void {
 
   const dispose = (): void => {
     characterCtx = null;
+    replyToolsDispose?.();
+    replyToolsDispose = null;
     xmlRuntime?.stop();
     xmlRuntime = null;
   };
 
   if (
-    config.enablePokeXmlTool ||
-    config.enableEmojiXmlTool ||
-    config.enableDeleteXmlTool ||
-    config.enableBanXmlTool
+    hasReplyToolsEnabled(config) ||
+    enableXmlRuntime
   ) {
     ctx.inject(["chatluna_character"], (innerCtx) => {
       characterCtx = innerCtx;
+      replyToolsDispose?.();
+      replyToolsDispose = hasReplyToolsEnabled(config)
+        ? registerCharacterReplyTools({
+            ctx: innerCtx,
+            config,
+            protocol: resolveOneBotProtocol(config, log),
+            log,
+          })
+        : null;
+      innerCtx.on("dispose", () => {
+        if (characterCtx === innerCtx) characterCtx = null;
+        replyToolsDispose?.();
+        replyToolsDispose = null;
+        xmlRuntime?.stop();
+      });
       if (!xmlRuntime) return;
       const started = xmlRuntime.start();
       if (started) log("info", "XML 工具已启用");
-      innerCtx.on("dispose", () => {
-        if (characterCtx === innerCtx) characterCtx = null;
-        xmlRuntime?.stop();
-      });
     });
   }
 

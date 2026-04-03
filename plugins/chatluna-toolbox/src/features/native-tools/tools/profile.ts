@@ -26,6 +26,39 @@ const genders: Record<string, string> = {
   female: "2",
 };
 
+export interface SendSetProfileParams {
+  session: import("koishi").Session | null;
+  nickname: string;
+  signature?: string;
+  gender?: "unknown" | "male" | "female";
+  protocol: OneBotProtocol;
+  log?: LogFn;
+}
+
+export async function sendSetProfile(
+  params: SendSetProfileParams,
+): Promise<string> {
+  try {
+    const { session, nickname, signature, gender, protocol, log } = params;
+    const { error, internal } = ensureOneBotSession(session);
+    if (error) return error;
+
+    const payload: Record<string, unknown> = { nickname };
+    if (signature) payload.personal_note = signature;
+    if (gender && protocol !== "llbot") payload.sex = genders[gender];
+
+    await callOneBotAPI(internal!, "set_qq_profile", payload, [
+      "setQQProfile",
+    ]);
+    const message = "机器人资料已更新。";
+    log?.("info", message);
+    return message;
+  } catch (error) {
+    params.log?.("warn", "修改机器人账户信息失败", error);
+    return `修改机器人账户信息失败：${(error as Error).message}`;
+  }
+}
+
 export function createSetProfileTool(deps: ProfileToolDeps): StructuredTool {
   const { toolName, description, log, protocol } = deps;
 
@@ -58,26 +91,14 @@ export function createSetProfileTool(deps: ProfileToolDeps): StructuredTool {
       _manager?: unknown,
       runnable?: unknown,
     ) {
-      try {
-        const session = getSession(runnable);
-        const { error, internal } = ensureOneBotSession(session);
-        if (error) return error;
-
-        const payload: Record<string, unknown> = { nickname: input.nickname };
-        if (input.signature) payload.personal_note = input.signature;
-        if (input.gender && protocol !== "llbot")
-          payload.sex = genders[input.gender];
-
-        await callOneBotAPI(internal!, "set_qq_profile", payload, [
-          "setQQProfile",
-        ]);
-        const message = "机器人资料已更新。";
-        log?.("info", message);
-        return message;
-      } catch (error) {
-        log?.("warn", "修改机器人账户信息失败", error);
-        return `修改机器人账户信息失败：${(error as Error).message}`;
-      }
+      return sendSetProfile({
+        session: getSession(runnable),
+        nickname: input.nickname,
+        signature: input.signature,
+        gender: input.gender,
+        protocol,
+        log,
+      });
     }
   })();
 }

@@ -18,6 +18,52 @@ export interface SetGroupCardToolDeps {
   log?: LogFn;
 }
 
+export interface SendSetGroupCardParams {
+  session: import("koishi").Session | null;
+  userId: string;
+  card: string;
+  groupId?: string;
+  log?: LogFn;
+}
+
+export async function sendSetGroupCard(
+  params: SendSetGroupCardParams,
+): Promise<string> {
+  try {
+    const { session, userId, card, groupId, log } = params;
+    if (!session) return "No session context available.";
+
+    const resolvedGroupId =
+      groupId?.trim() ||
+      (session.guildId ? String(session.guildId).trim() : "") ||
+      (session.channelId ? String(session.channelId).trim() : "");
+    if (!resolvedGroupId) {
+      return "Missing groupId. Provide groupId explicitly or run inside a group session.";
+    }
+
+    const userIdRaw = userId.trim();
+    const cardRaw = card.trim();
+    if (!userIdRaw) return "userId is required.";
+    if (!cardRaw) return "card is required.";
+
+    const { error, internal } = ensureOneBotSession(session);
+    if (error) return error;
+
+    await callOneBotAPI(
+      internal!,
+      "set_group_card",
+      { group_id: resolvedGroupId, user_id: userIdRaw, card: cardRaw },
+      ["setGroupCard"],
+    );
+    const message = `群昵称已更新：${userIdRaw} -> ${cardRaw}`;
+    log?.("info", message);
+    return message;
+  } catch (error) {
+    params.log?.("warn", "set_group_card failed", error);
+    return `set_group_card failed: ${(error as Error).message}`;
+  }
+}
+
 export function createSetGroupCardTool(
   deps: SetGroupCardToolDeps,
 ): StructuredTool {
@@ -47,38 +93,13 @@ export function createSetGroupCardTool(
       _manager?: unknown,
       runnable?: unknown,
     ) {
-      try {
-        const session = getSession(runnable);
-        if (!session) return "No session context available.";
-
-        const groupId =
-          input.groupId?.trim() ||
-          (session.guildId ? String(session.guildId).trim() : "") ||
-          (session.channelId ? String(session.channelId).trim() : "");
-        if (!groupId)
-          return "Missing groupId. Provide groupId explicitly or run inside a group session.";
-
-        const userId = input.userId.trim();
-        const card = input.card.trim();
-        if (!userId) return "userId is required.";
-        if (!card) return "card is required.";
-
-        const { error, internal } = ensureOneBotSession(session);
-        if (error) return error;
-
-        await callOneBotAPI(
-          internal!,
-          "set_group_card",
-          { group_id: groupId, user_id: userId, card },
-          ["setGroupCard"],
-        );
-        const message = `群昵称已更新：${userId} -> ${card}`;
-        log?.("info", message);
-        return message;
-      } catch (error) {
-        log?.("warn", "set_group_card failed", error);
-        return `set_group_card failed: ${(error as Error).message}`;
-      }
+      return sendSetGroupCard({
+        session: getSession(runnable),
+        groupId: input.groupId,
+        userId: input.userId,
+        card: input.card,
+        log,
+      });
     }
   })();
 }

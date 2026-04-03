@@ -23,6 +23,7 @@ export interface NativeToolsConfig {
 }
 
 export interface XmlToolsConfig {
+  injectXmlToolAsReplyTool: boolean;
   enablePokeXmlTool: boolean;
   enableEmojiXmlTool: boolean;
   enableDeleteXmlTool: boolean;
