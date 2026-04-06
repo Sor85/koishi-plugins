@@ -10,6 +10,7 @@ plugins/*/lib
 plugins/*/coverage
 plugins/*/package-lock.json
 plugins/*/.claude
+packages/*/lib
 .claude/*
 !.claude/AGENTS.md
 *.log
