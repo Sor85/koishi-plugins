@@ -3,6 +3,7 @@
  * 负责解析 XML 动作并执行好感度、黑名单、关系与昵称更新
  */
 
+import { parseSelfClosingXmlTags } from "chatluna-xml-tools";
 import { collectNicknameCandidates, fetchMember } from "../../helpers";
 import type { ModelResponseContext } from "./temp-runtime";
 import type { Config, LogFn } from "../../types";
@@ -89,25 +90,6 @@ export interface ModelResponseProcessorParams {
     max: number;
   };
   log: LogFn;
-}
-
-export function parseSelfClosingXmlTags(
-  text: string,
-  tagName: string,
-): Array<Record<string, string>> {
-  const tags = Array.from(
-    text.matchAll(new RegExp(`<${tagName}\\b([^>]*)\\/>`, "gi")),
-  );
-  if (!tags.length) return [];
-
-  return tags.map((tag) => {
-    const attrText = String(tag[1] || "");
-    const attrs: Record<string, string> = {};
-    for (const pair of attrText.matchAll(/([a-zA-Z_][\w-]*)="([^"]*)"/g)) {
-      attrs[pair[1]] = pair[2];
-    }
-    return attrs;
-  });
 }
 
 export function resolveXmlScopeId(

@@ -16,6 +16,6 @@ export default defineConfig({
     "koishi-plugin-chatluna/utils/schema",
     "@koishijs/plugin-console",
   ],
-  noExternal: [],
+  noExternal: ["chatluna-xml-tools"],
   skipNodeModulesBundle: true,
 });

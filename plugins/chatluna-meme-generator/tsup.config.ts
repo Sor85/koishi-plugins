@@ -9,5 +9,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: false,
   external: ['koishi', 'koishi-plugin-chatluna'],
+  noExternal: ['chatluna-xml-tools'],
   skipNodeModulesBundle: true,
 })

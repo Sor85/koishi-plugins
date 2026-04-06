@@ -1,0 +1,23 @@
+{
+  "name": "chatluna-xml-tools",
+  "version": "0.0.1",
+  "description": "ChatLuna XML 基础工具，提供解析、消息提取与 temp-runtime 监听能力",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "watch": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
+  }
+}
