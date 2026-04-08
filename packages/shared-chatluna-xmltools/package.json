@@ -1,5 +1,5 @@
 {
-  "name": "chatluna-xml-tools",
+  "name": "shared-chatluna-xmltools",
   "version": "0.0.1",
   "description": "ChatLuna XML 基础工具，提供解析、消息提取与 temp-runtime 监听能力",
   "main": "lib/index.js",

@@ -12,7 +12,7 @@ importers:
         specifier: ^2.27.11
         version: 2.30.0(@types/node@22.19.15)
 
-  packages/chatluna-xml-tools:
+  packages/shared-chatluna-xmltools:
     devDependencies:
       '@types/node':
         specifier: ^22.10.1
@@ -74,15 +74,15 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6.0.2
         version: 6.0.5(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(sass@1.98.0)(tsx@4.21.0))(vue@3.5.31(typescript@5.9.3))
-      chatluna-xml-tools:
-        specifier: workspace:*
-        version: link:../../packages/chatluna-xml-tools
       rimraf:
         specifier: ^5.0.5
         version: 5.0.10
       sass:
         specifier: ^1.77.0
         version: 1.98.0
+      shared-chatluna-xmltools:
+        specifier: workspace:*
+        version: link:../../packages/shared-chatluna-xmltools
       shared-nav:
         specifier: workspace:*
         version: link:../../packages/shared-nav
@@ -157,15 +157,15 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6.0.2
         version: 6.0.5(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(sass@1.98.0)(tsx@4.21.0))(vue@3.5.31(typescript@5.9.3))
-      chatluna-xml-tools:
-        specifier: workspace:*
-        version: link:../../packages/chatluna-xml-tools
       koishi:
         specifier: ^4.18.7
         version: 4.18.11(@cordisjs/plugin-http@0.6.3(cordis@3.18.1))(cordis@3.18.1)
       sass:
         specifier: ^1.77.0
         version: 1.98.0
+      shared-chatluna-xmltools:
+        specifier: workspace:*
+        version: link:../../packages/shared-chatluna-xmltools
       shared-nav:
         specifier: workspace:*
         version: link:../../packages/shared-nav
@@ -258,12 +258,12 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6.0.2
         version: 6.0.5(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(sass@1.98.0)(tsx@4.21.0))(vue@3.5.31(typescript@5.9.3))
-      chatluna-xml-tools:
-        specifier: workspace:*
-        version: link:../../packages/chatluna-xml-tools
       sass:
         specifier: ^1.77.0
         version: 1.98.0
+      shared-chatluna-xmltools:
+        specifier: workspace:*
+        version: link:../../packages/shared-chatluna-xmltools
       shared-nav:
         specifier: workspace:*
         version: link:../../packages/shared-nav

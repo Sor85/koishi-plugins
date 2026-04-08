@@ -41,7 +41,7 @@
     "@koishijs/client": "^5.30.0",
     "@types/node": "^22.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
-    "chatluna-xml-tools": "workspace:*",
+    "shared-chatluna-xmltools": "workspace:*",
     "koishi": "^4.18.7",
     "sass": "^1.77.0",
     "shared-nav": "workspace:*",

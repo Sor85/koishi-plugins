@@ -9,7 +9,7 @@ import {
   type CompletionMessagesLike,
   type TempLike,
   type CharacterServiceLike as SharedCharacterServiceLike,
-} from "chatluna-xml-tools";
+} from "shared-chatluna-xmltools";
 import type { LogFn } from "../../types";
 
 type CompletionMessagesArray = CompletionMessagesLike;

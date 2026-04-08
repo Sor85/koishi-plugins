@@ -3,4 +3,4 @@
  * 提供自闭合标签与属性提取能力
  */
 
-export { parseSelfClosingXmlTags } from "chatluna-xml-tools";
+export { parseSelfClosingXmlTags } from "shared-chatluna-xmltools";

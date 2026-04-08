@@ -7,7 +7,7 @@ import {
   createCharacterTempRuntime,
   type CharacterServiceLike as SharedCharacterServiceLike,
   type TempLike,
-} from "chatluna-xml-tools";
+} from "shared-chatluna-xmltools";
 import { h, type Context, type Session } from "koishi";
 import type { Config } from "../../config";
 import {

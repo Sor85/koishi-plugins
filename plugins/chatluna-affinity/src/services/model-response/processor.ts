@@ -3,7 +3,7 @@
  * 负责解析 XML 动作并执行好感度、黑名单、关系与昵称更新
  */
 
-import { parseSelfClosingXmlTags } from "chatluna-xml-tools";
+import { parseSelfClosingXmlTags } from "shared-chatluna-xmltools";
 import { collectNicknameCandidates, fetchMember } from "../../helpers";
 import type { ModelResponseContext } from "./temp-runtime";
 import type { Config, LogFn } from "../../types";
