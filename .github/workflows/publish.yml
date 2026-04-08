@@ -73,7 +73,7 @@ jobs:
           echo "Version verified: $PKG_VERSION"
 
       - name: Build
-        run: pnpm --filter "${{ steps.parse.outputs.package_name }}" run build
+        run: pnpm --filter "${{ steps.parse.outputs.package_name }}..." run build
 
       - name: Test
         working-directory: ${{ steps.find.outputs.dir }}
