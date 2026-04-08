@@ -37,8 +37,8 @@ function createConfig(overrides = {}) {
       blacklistListVariableName: "blacklistList",
     },
     xmlToolSettings: {
+      injectXmlToolAsReplyTool: false,
       enableAffinityXmlToolCall: true,
-      enableBlacklistXmlToolCall: true,
       enableRelationshipXmlToolCall: true,
       enableUserAliasXmlToolCall: true,
       characterPromptTemplate: "",

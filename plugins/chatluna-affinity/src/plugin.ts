@@ -22,6 +22,8 @@ import { createMessageHistory } from "./services/message/history";
 import {
   createCharacterTempModelResponseRuntime,
   createModelResponseProcessor,
+  hasReplyToolsEnabled,
+  registerCharacterReplyTools,
 } from "./services/model-response";
 import { createBlacklistService } from "./services/blacklist/repository";
 import { createBlacklistGuard } from "./services/blacklist/guard";
@@ -53,6 +55,14 @@ import {
 } from "./helpers/member";
 function normalizeToolSettings(config: Config): void {
   const xmlToolSettings = {
+    injectXmlToolAsReplyTool:
+      config.xmlToolSettings?.injectXmlToolAsReplyTool ??
+      (
+        config as unknown as {
+          injectXmlToolAsReplyTool?: boolean;
+        }
+      ).injectXmlToolAsReplyTool ??
+      false,
     enableAffinityXmlToolCall:
       config.xmlToolSettings?.enableAffinityXmlToolCall ?? true,
     enableBlacklistXmlToolCall:
@@ -179,6 +189,9 @@ export function apply(ctx: Context, config: Config): void {
     blacklistGuard.middleware as Parameters<typeof ctx.middleware>[0],
     true,
   );
+  let characterCtx: Context | null = null;
+  let xmlActionExecutionEnabled = true;
+  let replyToolsDispose: (() => void) | null = null;
 
   const processModelResponse = createModelResponseProcessor({
     config,
@@ -190,10 +203,9 @@ export function apply(ctx: Context, config: Config): void {
     shortTermConfig,
     actionWindowConfig,
     coefficientConfig,
+    shouldExecuteXmlActions: () => xmlActionExecutionEnabled,
     log,
   });
-
-  let characterCtx: Context | null = null;
   const modelResponseRuntime = createCharacterTempModelResponseRuntime({
     getCharacterService: () =>
       (
@@ -212,6 +224,48 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.inject(["chatluna_character"], (innerCtx) => {
     characterCtx = innerCtx;
+    const characterService = (
+      innerCtx as unknown as {
+        chatluna_character?: {
+          registerReplyToolField?: (...args: unknown[]) => () => void;
+        };
+      }
+    ).chatluna_character;
+    const enableReplyTools = hasReplyToolsEnabled(config);
+
+    replyToolsDispose?.();
+    replyToolsDispose = null;
+    xmlActionExecutionEnabled = true;
+
+    if (enableReplyTools) {
+      if (characterService?.registerReplyToolField) {
+        replyToolsDispose = registerCharacterReplyTools({
+          ctx: innerCtx,
+          config,
+          cache,
+          store,
+          blacklist,
+          unblockPermanent,
+          userAlias,
+          shortTermConfig,
+          actionWindowConfig,
+          coefficientConfig,
+          log,
+        });
+        xmlActionExecutionEnabled = false;
+        if (config.debugLogging) {
+          log("info", "已启用实验性 reply tool 字段注入，关闭 XML 动作执行");
+        }
+      } else {
+        if (config.debugLogging) {
+          log(
+            "warn",
+            "chatluna_character.registerReplyToolField 不可用，回退为 XML 动作执行模式",
+          );
+        }
+      }
+    }
+
     if (config.debugLogging) {
       log(
         "info",
@@ -223,6 +277,9 @@ export function apply(ctx: Context, config: Config): void {
       if (config.debugLogging) {
         log("info", "chatluna_character 依赖已卸载，停止模型响应 runtime");
       }
+      replyToolsDispose?.();
+      replyToolsDispose = null;
+      xmlActionExecutionEnabled = true;
       modelResponseRuntime.stop();
       if (characterCtx === innerCtx) {
         characterCtx = null;
@@ -232,6 +289,9 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.on("dispose", () => {
     characterCtx = null;
+    replyToolsDispose?.();
+    replyToolsDispose = null;
+    xmlActionExecutionEnabled = true;
     modelResponseRuntime.stop();
   });
 

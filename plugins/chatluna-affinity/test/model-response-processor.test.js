@@ -53,6 +53,7 @@ function createConfig(overrides = {}) {
     },
     botSelfIds: [],
     xmlToolSettings: {
+      injectXmlToolAsReplyTool: false,
       enableAffinityXmlToolCall: true,
       enableBlacklistXmlToolCall: true,
       enableRelationshipXmlToolCall: true,
@@ -180,6 +181,7 @@ function createProcessorHarness(overrides = {}) {
     actionWindowConfig: {
       maxEntries: 20,
     },
+    shouldExecuteXmlActions: overrides.shouldExecuteXmlActions,
     log,
   });
 
@@ -436,6 +438,33 @@ test("createModelResponseProcessor 处理 userAlias 与 relationship 混合 XML"
   assert.equal(calls.save[0].relation, "朋友");
   assert.equal(calls.clear.length, 1);
 });
+
+test("createModelResponseProcessor 在 shouldExecuteXmlActions=false 时跳过 XML 动作但保留互动记录", async () => {
+  const { processor, calls } = createProcessorHarness({
+    shouldExecuteXmlActions: () => false,
+    config: {
+      botSelfIds: ["bot-a"],
+    },
+  });
+  const session = createSession();
+
+  await processor({
+    response:
+      '<affinity scopeId="宁宁" userId="1001" action="increase" delta="2" /><blacklist scopeId="宁宁" userId="1001" action="add" mode="temporary" durationHours="12" note="xml" /><userAlias scopeId="宁宁" userId="1001" name="小明同学" /><relationship scopeId="宁宁" userId="1001" action="set" relation="朋友" />',
+    session,
+  });
+
+  assert.equal(calls.ensureForSeed.length, 1);
+  assert.equal(calls.recordInteraction.length, 1);
+  assert.equal(calls.save.length, 0);
+  assert.equal(calls.recordTemporary.length, 0);
+  assert.equal(calls.recordPermanent.length, 0);
+  assert.equal(calls.removeTemporary.length, 0);
+  assert.equal(calls.unblockPermanent.length, 0);
+  assert.equal(calls.setAlias.length, 0);
+  assert.equal(calls.clear.length, 0);
+});
+
 
 test("createModelResponseProcessor 在依赖抛错时记录 warn", async () => {
   const { processor, calls } = createProcessorHarness({

@@ -20,6 +20,9 @@ export const ScopeSettingsSchema = Schema.object({
 }).description("作用域设置");
 
 export const XmlToolSettingsSchema = Schema.object({
+  injectXmlToolAsReplyTool: Schema.boolean()
+    .default(false)
+    .description("将 XML 工具改为注入实验性“工具调用回复”的参数中"),
   enableAffinityXmlToolCall: Schema.boolean()
     .default(true)
     .description("启用好感度 XML 工具调用"),

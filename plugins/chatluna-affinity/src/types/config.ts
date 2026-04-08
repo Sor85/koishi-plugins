@@ -54,6 +54,7 @@ export interface VariableSettings {
 }
 
 export interface XmlToolSettings {
+  injectXmlToolAsReplyTool: boolean;
   enableAffinityXmlToolCall: boolean;
   enableBlacklistXmlToolCall: boolean;
   enableRelationshipXmlToolCall: boolean;

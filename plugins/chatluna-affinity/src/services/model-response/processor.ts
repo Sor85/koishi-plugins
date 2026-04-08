@@ -89,6 +89,7 @@ export interface ModelResponseProcessorParams {
     min: number;
     max: number;
   };
+  shouldExecuteXmlActions?: () => boolean;
   log: LogFn;
 }
 
@@ -190,6 +191,7 @@ export function createModelResponseProcessor(
     shortTermConfig,
     actionWindowConfig,
     coefficientConfig,
+    shouldExecuteXmlActions,
     log,
   } = params;
 
@@ -223,8 +225,10 @@ export function createModelResponseProcessor(
         config,
         store,
       });
+      const executeXmlActions = shouldExecuteXmlActions?.() ?? true;
 
       if (
+        executeXmlActions &&
         config.affinityEnabled &&
         config.xmlToolSettings.enableAffinityXmlToolCall
       ) {
@@ -309,13 +313,17 @@ export function createModelResponseProcessor(
         log("debug", "跳过 affinity XML 处理", {
           scopeId: config.scopeId,
           affinityEnabled: config.affinityEnabled,
+          executeXmlActions,
           enableAffinityXmlToolCall:
             config.xmlToolSettings.enableAffinityXmlToolCall,
           affinityTagCount: affinityTags.length,
         });
       }
 
-      if (config.xmlToolSettings.enableBlacklistXmlToolCall) {
+      if (
+        executeXmlActions &&
+        config.xmlToolSettings.enableBlacklistXmlToolCall
+      ) {
         for (const attrs of blacklistTags) {
           const scopeId = resolveXmlScopeId(attrs, config);
           const action = String(attrs.action || "")
@@ -455,13 +463,17 @@ export function createModelResponseProcessor(
       } else if (config.debugLogging && blacklistTags.length > 0) {
         log("debug", "跳过 blacklist XML 处理", {
           scopeId: config.scopeId,
+          executeXmlActions,
           enableBlacklistXmlToolCall:
             config.xmlToolSettings.enableBlacklistXmlToolCall,
           blacklistTagCount: blacklistTags.length,
         });
       }
 
-      if (config.xmlToolSettings.enableUserAliasXmlToolCall) {
+      if (
+        executeXmlActions &&
+        config.xmlToolSettings.enableUserAliasXmlToolCall
+      ) {
         for (const attrs of userAliasTags) {
           const scopeId = resolveXmlScopeId(attrs, config);
           const platform = String(attrs.platform || "onebot").trim();
@@ -502,13 +514,17 @@ export function createModelResponseProcessor(
       } else if (config.debugLogging && userAliasTags.length > 0) {
         log("debug", "跳过 userAlias XML 处理", {
           scopeId: config.scopeId,
+          executeXmlActions,
           enableUserAliasXmlToolCall:
             config.xmlToolSettings.enableUserAliasXmlToolCall,
           userAliasTagCount: userAliasTags.length,
         });
       }
 
-      if (config.xmlToolSettings.enableRelationshipXmlToolCall) {
+      if (
+        executeXmlActions &&
+        config.xmlToolSettings.enableRelationshipXmlToolCall
+      ) {
         for (const attrs of relationshipTags) {
           const scopeId = resolveXmlScopeId(attrs, config);
           const action = String(attrs.action || "set")
@@ -572,6 +588,7 @@ export function createModelResponseProcessor(
       } else if (config.debugLogging && relationshipTags.length > 0) {
         log("debug", "跳过 relationship XML 处理", {
           scopeId: config.scopeId,
+          executeXmlActions,
           enableRelationshipXmlToolCall:
             config.xmlToolSettings.enableRelationshipXmlToolCall,
           relationshipTagCount: relationshipTags.length,
