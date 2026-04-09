@@ -1,6 +1,6 @@
 /**
  * 思考内容内存存储
- * 按平台/群/用户维度缓存当前与上一次思考
+ * 按平台/群维度缓存当前与上一次思考
  */
 
 import type { ThoughtSession, ThinkStore, ThoughtSnapshot } from "../types";
@@ -8,12 +8,12 @@ import type { ThoughtSession, ThinkStore, ThoughtSnapshot } from "../types";
 export function buildThoughtStoreKey(
   session: ThoughtSession | null | undefined,
 ): string | null {
-  if (!session?.platform || !session.userId) {
+  if (!session?.platform) {
     return null;
   }
 
   const guildId = session.guildId || "private";
-  return `${session.platform}:${guildId}:${session.userId}`;
+  return `${session.platform}:${guildId}`;
 }
 
 export function createThinkStore(): ThinkStore {

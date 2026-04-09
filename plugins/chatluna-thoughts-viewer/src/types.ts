@@ -39,4 +39,4 @@ export interface ParseTagContentResult {
   thoughts: string[];
 }
 
-export type ThoughtSession = Pick<Session, "platform" | "guildId" | "userId">;
+export type ThoughtSession = Pick<Session, "platform" | "guildId">;
