@@ -14,7 +14,7 @@
     "build": "tsup && vite build",
     "watch": "tsup --watch",
     "clean": "rimraf lib dist",
-    "test": "node --test --test-name-pattern='.*' test/*.test.js"
+    "test": "node --test --test-name-pattern='.*' \"src/**/*.test.js\""
   },
   "keywords": [
     "chatbot",

@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["test/**/*.spec.ts"],
+    include: ["src/**/*.spec.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
