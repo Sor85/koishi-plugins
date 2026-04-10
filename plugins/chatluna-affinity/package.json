@@ -14,7 +14,7 @@
     "build": "tsup && vite build",
     "watch": "tsup --watch",
     "clean": "rimraf lib dist",
-    "test": "node --test --test-name-pattern='.*' \"src/**/*.test.js\""
+    "test": "node --import tsx --test --test-name-pattern='.*' \"src/**/*.test.ts\""
   },
   "keywords": [
     "chatbot",
@@ -58,6 +58,7 @@
     "shared-nav": "workspace:*",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "tsx": "^4.20.6"
   }
 }
