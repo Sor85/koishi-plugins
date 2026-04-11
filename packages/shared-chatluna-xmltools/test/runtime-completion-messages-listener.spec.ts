@@ -51,4 +51,25 @@ describe("subscribeAssistantResponses", () => {
     unsubscribeB();
     expect(messages.push).toBe(originalPush);
   });
+
+  it("同一消息对象内容变化后会再次触发", () => {
+    const messages: unknown[] = [];
+    const seen: string[] = [];
+
+    const unsubscribe = subscribeAssistantResponses(messages, {
+      symbolNamespace: "unit-test-update",
+      onResponse: ({ response }) => {
+        seen.push(response);
+      },
+    });
+
+    const message = { role: "assistant", content: "first" };
+    messages.push(message);
+    message.content = "second";
+    messages.push(message);
+
+    expect(seen).toEqual(["first", "second"]);
+
+    unsubscribe();
+  });
 });

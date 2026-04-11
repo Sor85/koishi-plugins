@@ -22,5 +22,5 @@ export interface Dispatcher<TMessage extends AssistantMessageLike = AssistantMes
   originalPush: CompletionMessagesLike["push"];
   patchedPush: CompletionMessagesLike["push"];
   listeners: Set<(message: TMessage) => void>;
-  processedMessages: WeakSet<object>;
+  processedMessages: WeakMap<object, string>;
 }

@@ -42,6 +42,14 @@ function setDispatcher<TMessage extends AssistantMessageLike>(
   });
 }
 
+function createMessageFingerprint(
+  message: Record<string, unknown>,
+  response: string,
+): string {
+  const type = String(message.type ?? message.role ?? "").trim().toLowerCase();
+  return `${type}:${response}`;
+}
+
 function restoreDispatcher<TMessage extends AssistantMessageLike>(
   key: symbol,
   dispatcher: Dispatcher<TMessage>,
@@ -78,7 +86,7 @@ export function subscribeAssistantResponses<
 
   if (!dispatcher) {
     const listeners = new Set<(message: TMessage) => void>();
-    const processedMessages = new WeakSet<object>();
+    const processedMessages = new WeakMap<object, string>();
     const originalPush = messages.push;
 
     const patchedPush: CompletionMessagesLike["push"] = function patchedPush(
@@ -89,12 +97,18 @@ export function subscribeAssistantResponses<
 
       for (const item of items) {
         if (!item || typeof item !== "object") continue;
-        if (processedMessages.has(item)) continue;
-        processedMessages.add(item);
 
         const message = item as TMessage;
         const response = extractAssistantText(message);
         if (!response) continue;
+
+        const fingerprint = createMessageFingerprint(
+          item as Record<string, unknown>,
+          response,
+        );
+        const previousFingerprint = processedMessages.get(item);
+        if (previousFingerprint === fingerprint) continue;
+        processedMessages.set(item, fingerprint);
 
         for (const listener of Array.from(listeners)) {
           try {
