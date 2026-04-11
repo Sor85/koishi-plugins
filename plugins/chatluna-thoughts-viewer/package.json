@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-chatluna-thoughts-viewer",
   "description": "提取 chatluna-character 模型输出中的 think 标签，并通过指令展示内容。",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
