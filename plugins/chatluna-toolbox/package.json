@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-chatluna-toolbox",
   "description": "为 ChatLuna 提供更多原生工具、XML 工具与变量，仅支持 onebot 平台。",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
