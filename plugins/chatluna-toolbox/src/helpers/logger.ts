@@ -10,7 +10,16 @@ export function createLogger(ctx: Context, config: Config): LogFn {
   const logger = ctx.logger('chatluna-toolbox')
 
   return (level, message, meta) => {
-    if (level === 'debug' && !config.debugLogging) return
+    if (level === 'debug') {
+      if (!config.debugLogging) return
+      if (meta === undefined) {
+        logger.info(message)
+        return
+      }
+      logger.info(message, meta)
+      return
+    }
+
     if (meta === undefined) {
       logger[level](message)
       return
