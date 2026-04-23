@@ -13,6 +13,7 @@ interface MemeKeyResolverClient {
 export interface DirectAliasEntry {
   alias: string;
   keys: string[];
+  isKeyAlias?: boolean;
 }
 
 export interface DirectAliasListResult {
@@ -24,6 +25,7 @@ export interface DirectAliasListResult {
 
 export interface KeyResolverOptions {
   infoFetchConcurrency?: number;
+  allowKeyWithoutPrefixTrigger?: boolean;
 }
 
 function normalizeAlias(input: string): string {
@@ -171,8 +173,16 @@ export async function listDirectAliases(
   }
 
   const aliasCandidateMap = new Map<string, Set<string>>();
+  const keyAliasSet = new Set<string>();
   const keys = Array.from(keyMap.values());
   const keyInfos = await fetchKeyInfos(client, keys, options);
+
+  if (options.allowKeyWithoutPrefixTrigger) {
+    for (const key of keys) {
+      registerAliasCandidate(aliasCandidateMap, key, key);
+      keyAliasSet.add(normalizeAlias(key));
+    }
+  }
   for (const item of keyInfos) {
     if (!item.info) continue;
     for (const keyword of item.info.keywords) {
@@ -191,6 +201,7 @@ export async function listDirectAliases(
       ([alias, keyCandidates]) => ({
         alias,
         keys: toSortedUniqueKeys(Array.from(keyCandidates)),
+        ...(keyAliasSet.has(alias) ? { isKeyAlias: true } : {}),
       }),
     ),
     totalKeys: keys.length,

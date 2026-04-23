@@ -35,6 +35,7 @@ function createConfig(overrides: Partial<Config> = {}): Config {
     enableQuotedTextTrigger: false,
     renderMemeListAsImage: false,
     enableDirectAliasWithoutPrefix: true,
+    allowKeyWithoutPrefixTrigger: false,
     allowMentionPrefixDirectAliasTrigger: false,
     allowLeadingAtBeforeCommand: false,
     enableDeveloperDebugLog: false,

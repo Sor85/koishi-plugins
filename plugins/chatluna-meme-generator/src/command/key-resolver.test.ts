@@ -68,6 +68,25 @@ describe("listDirectAliases", () => {
     expect(result.totalKeys).toBe(2);
   });
 
+  it("开启 key 无前缀触发后应将 key 注册为直触发别名", async () => {
+    const result = await listDirectAliases(
+      {
+        getKeys: async () => ["qizhu"],
+        getInfo: async () => createInfoResponse("qizhu", []),
+      },
+      {
+        allowKeyWithoutPrefixTrigger: true,
+      },
+    );
+
+    expect(result.entries).toEqual([
+      { alias: "qizhu", keys: ["qizhu"], isKeyAlias: true },
+    ]);
+    expect(result.hasInfoFailure).toBe(false);
+    expect(result.failedInfoKeys).toBe(0);
+    expect(result.totalKeys).toBe(1);
+  });
+
   it("部分 getInfo 失败时返回失败统计", async () => {
     const result = await listDirectAliases({
       getKeys: async () => ["qizhu", "google"],

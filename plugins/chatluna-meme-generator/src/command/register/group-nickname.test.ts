@@ -122,6 +122,7 @@ function createBaseConfig(): Config {
     enableQuotedTextTrigger: false,
     renderMemeListAsImage: false,
     enableDirectAliasWithoutPrefix: false,
+    allowKeyWithoutPrefixTrigger: false,
     allowMentionPrefixDirectAliasTrigger: false,
     allowLeadingAtBeforeCommand: false,
     enableDeveloperDebugLog: false,

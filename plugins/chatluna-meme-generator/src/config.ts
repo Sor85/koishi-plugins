@@ -38,6 +38,7 @@ export interface Config {
   enableQuotedTextTrigger: boolean;
   renderMemeListAsImage: boolean;
   enableDirectAliasWithoutPrefix: boolean;
+  allowKeyWithoutPrefixTrigger?: boolean;
   allowMentionPrefixDirectAliasTrigger: boolean;
   allowLeadingAtBeforeCommand: boolean;
   enableDeveloperDebugLog: boolean;
@@ -82,6 +83,7 @@ export const defaultConfig: Config = {
   enableQuotedTextTrigger: false,
   renderMemeListAsImage: true,
   enableDirectAliasWithoutPrefix: true,
+  allowKeyWithoutPrefixTrigger: false,
   allowMentionPrefixDirectAliasTrigger: false,
   allowLeadingAtBeforeCommand: false,
   enableDeveloperDebugLog: false,
@@ -213,6 +215,9 @@ const triggerSchema = Schema.object({
   enableDirectAliasWithoutPrefix: Schema.boolean()
     .default(defaultConfig.enableDirectAliasWithoutPrefix)
     .description("是否允许中文别名跳过指令前缀直接触发"),
+  allowKeyWithoutPrefixTrigger: Schema.boolean()
+    .default(defaultConfig.allowKeyWithoutPrefixTrigger ?? false)
+    .description("是否允许 key 跳过指令前缀直接触发"),
   allowMentionPrefixDirectAliasTrigger: Schema.boolean()
     .default(defaultConfig.allowMentionPrefixDirectAliasTrigger)
     .description("是否允许贴合参数触发（如 meme@用户1@用户2文本参数）"),

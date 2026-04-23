@@ -931,6 +931,72 @@ describe("registerCommands", () => {
     expect(session.execute).not.toHaveBeenCalled();
     expect(generateMock).toHaveBeenCalled();
   });
+
+  it("仅开启 key 无前缀触发时应注册 key 直触发 matcher", async () => {
+    keyResolverMocks.listDirectAliases.mockResolvedValue({
+      entries: [{ alias: "meteor", keys: ["meteor"], isKeyAlias: true }],
+      hasInfoFailure: false,
+      failedInfoKeys: 0,
+      totalKeys: 1,
+    });
+
+    const { ctx, readyHandlers, matchHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        enableDirectAliasWithoutPrefix: false,
+        allowKeyWithoutPrefixTrigger: true,
+      }),
+    );
+    await flushReadyHandlers(readyHandlers);
+
+    expect(matchHandlers).toHaveLength(1);
+
+    const session = createSession("meteor");
+    await expect(matchHandlers[0](session)).resolves.toBeTruthy();
+    expect(generateMock).toHaveBeenCalledWith("meteor", [], [], {});
+  });
+
+  it("中文别名与 key 无前缀同时开启时应同时注册两个 matcher", async () => {
+    keyResolverMocks.listDirectAliases.mockResolvedValue({
+      entries: [
+        { alias: "骑猪", keys: ["qizhu"] },
+        { alias: "meteor", keys: ["meteor"], isKeyAlias: true },
+      ],
+      hasInfoFailure: false,
+      failedInfoKeys: 0,
+      totalKeys: 2,
+    });
+
+    const { ctx, readyHandlers, matchHandlers } = createMockContext();
+
+    registerCommands(
+      ctx,
+      createBaseConfig({
+        enableDirectAliasWithoutPrefix: true,
+        allowKeyWithoutPrefixTrigger: true,
+      }),
+    );
+    await flushReadyHandlers(readyHandlers);
+
+    expect(matchHandlers).toHaveLength(2);
+
+    const chineseSession = createSession("骑猪");
+    const chineseResults = await Promise.all(
+      matchHandlers.map((handler) => handler(chineseSession)),
+    );
+    expect(chineseResults.some(Boolean)).toBe(true);
+
+    const keySession = createSession("meteor");
+    const keyResults = await Promise.all(
+      matchHandlers.map((handler) => handler(keySession)),
+    );
+    expect(keyResults.some(Boolean)).toBe(true);
+
+    expect(generateMock).toHaveBeenCalledWith("qizhu", [], [], {});
+    expect(generateMock).toHaveBeenCalledWith("meteor", [], [], {});
+  });
   it("直触发中文别名生成失败时返回统一错误文案", async () => {
     generateMock.mockRejectedValue(new Error("boom"));
     const { ctx, readyHandlers, matchHandlers } = createMockContext();
@@ -1664,9 +1730,23 @@ describe("registerCommands", () => {
     try {
       const { ctx, readyHandlers, loggerWarn } = createMockContext();
 
-      registerCommands(ctx, createBaseConfig({ initLoadRetryTimes: 1 }));
+      registerCommands(
+        ctx,
+        createBaseConfig({
+          initLoadRetryTimes: 1,
+          allowKeyWithoutPrefixTrigger: true,
+        }),
+      );
       await flushReadyHandlers(readyHandlers);
       expect(keyResolverMocks.listDirectAliases).toHaveBeenCalledTimes(1);
+      expect(keyResolverMocks.listDirectAliases).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        expect.objectContaining({
+          infoFetchConcurrency: 0,
+          allowKeyWithoutPrefixTrigger: true,
+        }),
+      );
 
       await vi.advanceTimersByTimeAsync(3000);
       await flushAsyncCycles();

@@ -585,7 +585,10 @@ export function registerCommands(ctx: Context, config: Config): void {
     xmlActionExecutionEnabled = true;
   });
 
-  if (config.enableDirectAliasWithoutPrefix) {
+  if (
+    config.enableDirectAliasWithoutPrefix ||
+    config.allowKeyWithoutPrefixTrigger
+  ) {
     installDirectAliasRuntime({
       ctx,
       config,

@@ -161,6 +161,7 @@ export function installDirectAliasRuntime(
     if (aliasRetryDisposed) return true;
     const result = await listDirectAliases(client, {
       infoFetchConcurrency: config.infoFetchConcurrency,
+      allowKeyWithoutPrefixTrigger: config.allowKeyWithoutPrefixTrigger,
     });
     await ensureCategoryExcludedMemeKeySet();
     if (aliasRetryDisposed) return true;
@@ -210,7 +211,7 @@ export function installDirectAliasRuntime(
     }
 
     for (const entry of sortedEntries) {
-      if (!shouldRegisterDirectAlias(entry.alias)) continue;
+      if (!entry.isKeyAlias && !shouldRegisterDirectAlias(entry.alias)) continue;
       if (ctx.$commander.get(entry.alias)) continue;
 
       const aliasKeys = entry.keys.filter(Boolean);
@@ -229,7 +230,9 @@ export function installDirectAliasRuntime(
         registeredCount += 1;
       }
 
-      const directAliasPattern = config.allowMentionPrefixDirectAliasTrigger
+      const allowMergedSuffix =
+        !entry.isKeyAlias && config.allowMentionPrefixDirectAliasTrigger;
+      const directAliasPattern = allowMergedSuffix
         ? createMergedDirectAliasPattern(entry.alias)
         : createStrictDirectAliasPattern(entry.alias);
 
@@ -259,7 +262,7 @@ export function installDirectAliasRuntime(
           const directAliasTexts = extractDirectAliasTexts(
             session,
             entry.alias,
-            config.allowMentionPrefixDirectAliasTrigger,
+            allowMergedSuffix,
             config.allowLeadingAtBeforeCommand,
           );
           if (!directAliasTexts) {
